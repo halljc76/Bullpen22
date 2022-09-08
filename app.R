@@ -6,11 +6,13 @@ library(DT)
 library(plotly)
 library(aws.s3)
 library(e1071)
-library(RSQLite)
 library(glue)
+library(RPostgres)
+library(DBI)
 library(rsconnect)
 
 source("helpers.R")
+source("./dbFuncs.R")
 readRenviron("./.Renviron")
 
 ui <- dashboardPage(
@@ -37,13 +39,35 @@ ui <- dashboardPage(
                 )
               ),
       tabItem(tabName = "Notes",
-              tabsetPanel(
-                tabPanel("Add",
-                         textInput(inputId = "titleAdd", label = h3("Title"), placeholder = "Main Point(s): What do you want to say?"),
-                         br(),
-                         textAreaInput(inputId = "noteBody", label = h3("Body"), placeholder = "Say it!",
-                                       width = "500px", height = "300px")),
-                tabPanel("View")
+              sidebarLayout(
+                sidebarPanel = sidebarPanel(width = 2,
+                                            h4("Your Feed"),
+                                            hr()),
+                mainPanel = mainPanel(width = 10,
+                                      h2("View Note"),
+                                      br(),
+                                      h2("Add Note"),
+                                      column(width = 6,
+                                             textInput(inputId = "noteTitle",
+                                                       label = "Title",
+                                                       width = "100%",
+                                                       placeholder = "Main Point or Message"),
+                                             textAreaInput(inputId = "noteMessage",
+                                                           label = "Note",
+                                                           width = "100%",
+                                                           placeholder = "Say something!"),
+                                             actionButton(inputId = "noteAdd", label = "Add Note", class = "btn-primary"),
+                                             h5(HTML("<b>References</b>")),
+                                             verbatimTextOutput("refView"),),
+                                      column(width = 5,
+                                             h5(HTML("<b>Include Pitches</b>")),
+                                             h5("To add possible references, click on rows in the 'Data View' tab.
+                                                Summary info about each selected pitch will update below.
+                                                Select from the pitches below the ones you want to include in the note."),
+                                             actionButton(inputId = "refSelectInsert", label = "Insert Selected Pitch", icon = icon("arrow-up")),
+                                             br(),
+                                             br(),
+                                             DT::dataTableOutput(outputId = "refSelectTable")))
               )),
       tabItem(tabName = "Data",
               column(width = 4,
@@ -104,33 +128,51 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
 
-  values <- reactiveValues(gotData = F, data = NULL, notes = NULL,
+  # Database Name and Connection Information
+  db <- 'defaultdb'
+  host_db <- 'free-tier14.aws-us-east-1.cockroachlabs.cloud'
+  db_port <- '26257'
+
+  con <- dbConnect(RPostgres::Postgres(), dbname = db, host=host_db, port=db_port, user=Sys.getenv("COCKROACH_USER"),
+                   password=Sys.getenv("COCKROACH_PASSWORD"), sslmode = NULL, options = "--cluster=bullpen-notes-4213")
+  ###########################################
+
+  values <- reactiveValues(gotLogin = T, gotData = F, data = NULL, login = NULL,
                            testDataHP = NULL, testDataPM = NULL, testDataMT = NULL,
-                           testDataDV = NULL, gotMod = F, readyForModels = F, gotPreds = F,
+                           testDataDV = NULL, allRefs = NULL, refData = NULL,
+                           sessionDV = NULL, uids = c(), refdUIDs = c(),
+                           gotMod = F, readyForModels = F, gotPreds = F,
                            metricChoice = c("RelSpeed", "ZoneSpeed", "VertRelAngle",
                                             "HorzRelAngle", "SpinRate",
                                             "SpinAxis", "RelHeight",
                                             "RelSide", "Extension",
                                             "HorzBreak", "InducedVertBreak",
                                             "PlateLocHeight", "PlateLocSide"))
-  #observe({
-  #  if (!values$gotLogin) {
-  #    showModal(
-  #      modalDialog(
-  #        title = "Bullpen @ Boshamer Login", footer = NULL, easyClose = F,
-  #        h4("Welcome to the Bullpen App for the 2022 ACC Champions!"),
-  #        textInput(inputId = "loginEnter", label = "Enter Login Info", value = ""),
-  #        textInput(inputId = "passEnter", label = "Enter Password", value = ""),
-  #        actionButton(inputId = "login", label = "Login", class = "btn-primary")
-  #      )
-  #    )
-  #  }
-  #})
+  observe({
+    if (!values$gotLogin) {
+      showModal(
+        modalDialog(
+          title = "Bullpen @ Boshamer Login", footer = NULL, easyClose = F,
+          h4("Welcome to the Bullpen App for the 2022 ACC Champions!"),
+          textInput(inputId = "loginEnter", label = "Enter Login Info", value = ""),
+          textInput(inputId = "passEnter", label = "Enter Password", value = ""),
+          actionButton(inputId = "login", label = "Login", class = "btn-primary")
+        )
+      )
+    }
+  })
+
+  observeEvent(input$login, {
+    if (loginUser(con, input$loginEnter, input$passEnter)) {
+      values$gotLogin <- T
+      values$login <- input$loginEnter
+      removeModal()
+    }
+  })
 
   observe({
-    if (!values$gotData) {
+    if (!values$gotData && values$gotLogin) {
       values$data <- getData()
-      #values$notes <- getNotes()
       values$gotData <- T
     }
   })
@@ -149,7 +191,37 @@ server <- function(input, output, session) {
                       choices = values$metricChoice)
 
     output$sessionDataView <- renderDataTable({values$data})
+  })
 
+  observeEvent(input$sessionDataView_rows_selected, {
+    values$uids <- append(values$uids, values$sessionDV[input$sessionDataView_rows_selected,]$PitchUID)
+    values$uids <- unique(values$uids)
+    values$refData <- shortenRef(values$data %>% filter(PitchUID %in% values$uids))
+    output$refSelectTable <- renderDataTable({DT::datatable(values$refData[,1:4],selection = list(mode = "single"))})
+  })
+
+  observeEvent(input$refSelectInsert, {
+    if (length(input$refSelectTable_rows_selected) == 1) {
+      pitchUID <- values$refData[input$refSelectTable_rows_selected,]$PitchUID
+      values$refdUIDs <- append(values$refdUIDs, pitchUID)
+      values$refdUIDs <- unique(values$refdUIDs) # Safeguard that should be unnecessary
+    }
+
+
+    uidstring <- ""
+    for (id in values$refdUIDs) {
+      uidstring <- paste(uidstring, id, sep = "\n")
+    }
+    output$refView <- renderText(({uidstring}))
+  })
+
+  observeEvent(input$noteAdd, {
+    print(paste("Login: ", values$login))
+    print(paste("Date: ", Sys.Date()))
+    print(paste("Title: ", input$noteTitle))
+    print(paste("Message: ", input$noteMessage))
+    print(values$refdUIDs)
+    addNote(con, values$login, input$noteTitle, input$noteMessage, values$refdUIDs)
   })
 
   observeEvent(input$metricSelect1, {
@@ -178,10 +250,10 @@ server <- function(input, output, session) {
 
   observeEvent({input$pitcherSelectDV
                 input$datesSelectDV}, {
-                  output$sessionDataView <- renderDataTable({values$data %>%
-                                                             filter(Pitcher == input$pitcherSelectDV) %>%
-                                                             filter(Date %in% input$datesSelectDV)
-                      })
+                  values$sessionDV <- values$data %>%
+                    filter(Pitcher == input$pitcherSelectDV) %>%
+                    filter(Date %in% input$datesSelectDV)
+                  output$sessionDataView <- renderDataTable({values$sessionDV})
                 })
 
   observeEvent(input$pitcherSelectPM, {

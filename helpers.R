@@ -23,26 +23,6 @@ getModelTrain <- function() {
     return(ret)
 }
 
-loginUser <- function(conn, user, pass) {
-  # Returns NA --> Username not found
-  # Returns FALSE --> Wrong password
-  # Returns TRUE --> Authenticated User
-
-  pw = getPassword(user)
-  print(pw)
-  return(pw == pass)
-
-  #return(unname(pass == dbGetQuery(conn, glue(
-  #"SELECT L.Password FROM Logins L
-  # WHERE L.Login = '{name}'", name = user)))[1])
-}
-
-getNotes <- function() {
-
-
-  return(read.csv("./Notes/notes.txt", header = TRUE))
-}
-
 summaryStats <- function(data, pitcher, dates) {
   temp <- data %>% filter(Pitcher == pitcher) %>% filter(Date %in% dates) %>%
     filter(TaggedPitchType != "Undefined") %>% select(ZoneSpeed, RelSpeed, SpinRate, TaggedPitchType, Tilt)
@@ -312,3 +292,16 @@ makeCSPlot <- function(data, batterSide, minCS, maxCS) {
   return(fig)
 }
 
+shortenRef <- function(refs) {
+  ret <- data.frame()
+  for (i in 1:nrow(refs)) {
+    name <- refs$Pitcher[i]
+    lastName <- substr(name, 1, gregexpr(",", name)[[1]][1] - 1)
+    date <- refs$Date[i]
+    pitchType <- refs$TaggedPitchType[i]
+    velo <- round(as.numeric(refs$ZoneSpeed[i]), 2)
+    ret <- rbind(ret, c(lastName,date,pitchType,toString(velo),refs$PitchUID[i]))
+  }
+  colnames(ret) <- c("LastName", "Date", "PitchType", "ZoneSpeed", "PitchUID")
+  return(ret)
+}
