@@ -11,33 +11,46 @@ getData <- function() {
   return(ret)
 }
 
-getModelTrain <- function() {
-    ret <- data.frame()
-    keys <- unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "Train/"))$Key)
-    for (key in keys) {
-      if (gregexpr(".csv", key)[[1]][1] != -1) {
-        temp <- s3read_using(FUN = read.csv, bucket = "uncbullpen", object = key)
-        ret <- rbind(ret, temp[,2:ncol(temp)])
-      }
+getOurGames <- function() {
+  ret <- data.frame()
+  keys <- unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "UNCLiveGame/"))$Key)
+  for (key in keys) {
+    if (gregexpr(".fst", key)[[1]][1] != -1) {
+      temp <- s3read_using(FUN = read.fst, bucket = "uncbullpen", object = key)
+      ret <- rbind(ret, temp)
     }
-    return(ret)
+  }
+  return(ret)
 }
 
-summaryStats <- function(data, pitcher, dates) {
-  temp <- data %>% filter(Pitcher == pitcher) %>% filter(Date %in% dates) %>%
-    filter(TaggedPitchType != "Undefined") %>% select(ZoneSpeed, RelSpeed, SpinRate, TaggedPitchType, Tilt)
+
+summaryStats <- function(data, pitcher = NA, dates = NA, flag = T) {
+  if (flag) {
+    temp <- data %>% filter(Pitcher == pitcher) %>% filter(Date %in% dates) %>%
+      filter(TaggedPitchType != "Undefined") %>% select(RelSpeed, SpinRate, TaggedPitchType, InducedVertBreak,
+                                                        HorzBreak, RelHeight, Tilt)
+  } else {
+    temp <- data %>% filter(TaggedPitchType != "Undefined") %>%
+      select(RelSpeed, SpinRate, TaggedPitchType, InducedVertBreak, HorzBreak, RelHeight, Tilt)
+  }
+
   temp <- na.omit(temp)
+
 
   tilts <- averageTilt(temp)
 
   ret <- temp %>% group_by(TaggedPitchType) %>%
            summarize(Count = n(),
-                     Velo = paste0(toString(round(min(ZoneSpeed), 0)), "-",
-                                   toString(round(max(ZoneSpeed)), 0)),
-                     AvgZoneVelo = round(mean(ZoneSpeed), 1),
-                     AvgReleaseVelo = round(mean(RelSpeed), 1),
-                     AvgSpeedDrop = round(mean(RelSpeed - ZoneSpeed), 1))
+                     `Max Velo` = round(max(RelSpeed), 2),
+                     `Avg. Velo` = round(mean(RelSpeed), 2),
+                     `Spin Rate` = round(mean(SpinRate), 2),
+                     `Avg. Vert. Brk` = round(mean(InducedVertBreak), 2),
+                     `Avg. Horz. Brk` = round(mean(HorzBreak), 2),
+                     `Avg. Rel. Height` = round(mean(RelHeight), 2))
   ret <- left_join(ret, tilts, by = c("TaggedPitchType" = "TaggedPitchType"))
+  colnames(ret) <- c("Pitch Type", "Count", "Max. Velo",
+                        "Avg. Velo", "Spin Rate", "Avg. Vert. Brk",
+                        "Avg. Horz. Brk", "Avg. Rel. Height", "Avg. Tilt")
   return(ret)
 }
 
@@ -58,22 +71,21 @@ rowNmbrFact <- function(data, factor) {
 averageTilt <- function(df) {
   ret <- data.frame()
 
+
   for (pt in unique(df$TaggedPitchType)) {
     if (pt != "Undefined") {
       df2 <- subset(df, df$TaggedPitchType == pt)
       m <- c()
       for (i in 1:nrow(df2)) {
-        tilt <- df2$Tilt[i]
+        tilt <- gsub(".* ", "", df2$Tilt[i])
         if (!is.na(tilt) && !is.null(tilt)) {
           hr <- strtoi(substr(tilt, 1, gregexpr(":", tilt)[[1]][1] - 1))
           min <- strtoi(substr(tilt, gregexpr(":", tilt)[[1]][1] + 1, nchar(tilt)))
-
           m[i] <- (hr * 60) + min
         }
       }
 
       m <- na.omit(m)
-
       nearhr <- round(mean(m) / 60)
       nearmin <- round(
         round(mean(m) - round(mean(m) / 60) * 60) / 15) * 15
@@ -101,6 +113,7 @@ averageTilt <- function(df) {
     }
   }
 
+
   colnames(ret) <- c("TaggedPitchType", "Avg. Tilt")
   return(ret)
 }
@@ -116,7 +129,7 @@ timeGraphs <- function(df, pitcher, dates, response) {
   ptWithDate <- c()
   for (i in 1:nrow(df)) {
     ptWithDate <- append(ptWithDate,
-                         paste(df$TaggedPitchType[i], substr(df$Date[i], 1, 4)))
+                         paste(df$TaggedPitchType[i], substr(df$Date[i], 6, 10)))
   }
   df$ptWithDate <- ptWithDate
 
@@ -244,7 +257,7 @@ makeWhiffPlot <- function(data, batterSide, minWF, maxWF) {
       hoverinfo = "text",
       text = ~paste("Whiff% vs. LHH: ", round(100 * data$pWhiffL, 2),
                     "\n Whiff% vs. RHH: ", round(100 * data$pWhiffR, 2),
-                    "\n Velo: ", round(data$ZoneSpeed, 1), " MPH",
+                    "\n Velo: ", round(data$RelSpeed, 1), " MPH",
                     "\n Spin: ", round(data$SpinRate, 1), " RPM",
                     "\n Tilt: ", data$Tilt, sep = "")
     ) %>% layout(
@@ -255,7 +268,9 @@ makeWhiffPlot <- function(data, batterSide, minWF, maxWF) {
                     xref = "x",
                     y0 = 1.525,
                     y1 = 3.316,
-                    yref = "y")
+                    yref = "y"),
+      xaxis = list(title = "Plate Side"),
+      yaxis = list(title = "Plate Height")
     )
   return(fig)
 }
@@ -276,7 +291,7 @@ makeCSPlot <- function(data, batterSide, minCS, maxCS) {
     hoverinfo = "text",
     text = ~paste("CS% vs. LHH: ", round(100 * data$pCSL, 2),
                   "\n CS% vs. RHH: ", round(100 * data$pCSR, 2),
-                  "\n Velo: ", round(data$ZoneSpeed, 1), " MPH",
+                  "\n Velo: ", round(data$RelSpeed, 1), " MPH",
                   "\n Spin: ", round(data$SpinRate, 1), " RPM",
                   "\n Tilt: ", data$Tilt, sep = "")
   ) %>% layout(
@@ -287,9 +302,19 @@ makeCSPlot <- function(data, batterSide, minCS, maxCS) {
                   xref = "x",
                   y0 = 1.525,
                   y1 = 3.316,
-                  yref = "y")
+                  yref = "y"),
+    xaxis = list(title = "Plate Side"),
+    yaxis = list(title = "Plate Height")
   )
   return(fig)
+}
+
+revRow <- function(df) {
+  ret <- data.frame()
+  for (i in 1:nrow(df)) {
+    ret <- rbind(ret, df[nrow(df) - i + 1,])
+  }
+  return(ret)
 }
 
 shortenRef <- function(refs) {
@@ -303,5 +328,51 @@ shortenRef <- function(refs) {
     ret <- rbind(ret, c(lastName,date,pitchType,toString(velo),refs$PitchUID[i]))
   }
   colnames(ret) <- c("LastName", "Date", "PitchType", "ZoneSpeed", "PitchUID")
+  return(ret)
+}
+
+constructViz <- function(df) {
+  plot_ly(type = "scatter",
+          mode = "markers",
+          x = ~df$PlateLocSide,
+          y = ~df$PlateLocHeight,
+          color = ~as.factor(df$TaggedPitchType),
+          width = 500, height = 450,
+          hoverinfo = "text",
+          text = ~paste("Name:", df$Pitcher,
+                        "\nVelo:", round(df$RelSpeed, 2),
+                        "\nSpin:", round(df$SpinRate, 2),
+                        "\nInd. Vert. Brk:", round(df$InducedVertBreak, 2),
+                        "\nHorz. Brk", round(df$HorzBreak, 2),
+                        "\nTilt:", df$Tilt)) %>% layout(
+                          shapes = list(type = "rect",
+                                        line = list(color = "blue"),
+                                        x0 = -0.95,
+                                        x1 = 0.95,
+                                        xref = "x",
+                                        y0 = 1.525,
+                                        y1 = 3.316,
+                                        yref = "y"),
+                          showlegend = T,
+                          xaxis = list(title = "Plate Side"),
+                          yaxis = list(title = "Plate Height"))
+}
+
+pitchOutcomes <- function(df, flag = T) {
+  if (flag) {
+    ret <- df %>% filter(BatterSide == "Left") %>% group_by(TaggedPitchType) %>%
+      summarise(`Count` = n(),
+                `# Swings` = sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")),
+                `Swing %` = round(sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")) / n(),2),
+                `St. Swing %` = round(sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")) / n(),2),
+                `Whiff %` = round(sum(PitchCall %in% c("StrikeSwinging")) / n(),2))
+  } else {
+    ret <- df %>% filter(BatterSide == "Right") %>% group_by(TaggedPitchType) %>%
+      summarise(`Count` = n(),
+                `# Swings` = sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")),
+                `Swing %` = round(sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")) / n(),2),
+                `St. Swing %` = round(sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")) / n(),2),
+                `Whiff %` = round(sum(PitchCall %in% c("StrikeSwinging")) / n(),2))
+  }
   return(ret)
 }

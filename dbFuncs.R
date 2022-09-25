@@ -13,6 +13,17 @@ loginUser <- function(conn, user, pass) {
   }
 }
 
+getPitcher <- function(conn, login) {
+  if (login == "analytics") {
+    return("Buchner, Bradley")
+  }
+
+  ret <- dbGetQuery(conn, glue("SELECT L.name FROM Logins L WHERE L.login = '{l}'",
+                               l = login))[[1]]
+  names <- strsplit(ret, " ")
+  return(paste(names[[1]][2], names[[1]][1], sep = ", "))
+}
+
 addNote <- function(conn, login, title, message, listUID) {
   q1 <- dbGetQuery(conn, "SELECT COUNT(*) FROM Notes;")[[1]] + 1
   if (is.na(q1)) {
@@ -47,4 +58,14 @@ addNote <- function(conn, login, title, message, listUID) {
 
   print(dbGetQuery(conn, "SELECT * FROM Notes;"))
   print(dbGetQuery(conn, "SELECT * FROM Refs;"))
+}
+
+getNotes <- function(conn) {
+  print(dbGetQuery(conn, "SELECT * FROM Notes ORDER BY noteid DESC;"))
+  return(dbGetQuery(conn, "SELECT * FROM Notes ORDER BY noteid DESC;"))
+}
+
+getSpecRefs <- function(conn, noteid) {
+  ret <- dbGetQuery(conn, glue("SELECT R.pitchuid FROM Refs L WHERE R.noteid = '{n}'",
+                               n = noteid))[[1]]
 }
