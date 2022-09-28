@@ -267,9 +267,10 @@ server <- function(input, output, session) {
     addNote(con, values$login, input$noteTitle, input$noteMessage, values$refdUIDs)
     values$allNotes <- getNotes(con)
 
-    updateTextInput("noteTitle", placeholder = "")
-    updateTextAreaInput("noteMessage", placeholder = "")
+    updateTextInput(session = session, "noteTitle", value = "")
+    updateTextAreaInput(session = session, "noteMessage", value = "")
     values$refdUIDs <- c()
+    output$refView <- renderText(({""}))
   })
 
   observeEvent(input$notesTable_rows_selected, {
