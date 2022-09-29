@@ -1,59 +1,98 @@
+#' @title Collect Bullpen Session Data
+#' @description This function uses our AWS system to grab all stored bullpen sessions
+#'              from the 'Data' folder of the 'uncbullpen' S3 bucket.
+#'              NOTE: The function assumes the files are all stored as .csv.
 getData <- function() {
-  ret <- data.frame()
+  ret <- data.frame() # Output df
+
+  # Get all the unique filenames in the bucket
   keys <- unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "Data/"))$Key)
+
+  # For each file...
   for (key in keys) {
+    # Ensure it's a csv
     if (gregexpr(".csv", key)[[1]][1] != -1) {
+      # Read it in
       temp <- s3read_using(FUN = read.csv, bucket = "uncbullpen", object = key)
-      colnames(temp)[1] <- "PitchNo"
-      ret <- rbind(ret, temp)
+      colnames(temp)[1] <- "PitchNo" # Fix a little read-in error
+      ret <- rbind(ret, temp) # Bind everything
     }
   }
-  return(ret)
+  return(ret) # Return the data
 }
 
+#' @title Collect Live Game Data
+#' @description This function uses our AWS system to grab all stored bullpen sessions
+#'              from the 'UNCLiveGame' folder of the 'uncbullpen' S3 bucket.
+#'              NOTE: The function assumes the files are all stored as .fst.
+#'              Consider using the read.csv and write.fst functions in base R
+#'              to convert any necessary .csv files to .fst. (Use in conjunction
+#'              with list.files in order to do this for a large host of files.)
 getOurGames <- function() {
-  ret <- data.frame()
+  ret <- data.frame() # Output df
+  # Get filenames
   keys <- unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "UNCLiveGame/"))$Key)
+
+  # For each file...
   for (key in keys) {
+    # Ensure this is an .fst file
     if (gregexpr(".fst", key)[[1]][1] != -1) {
+      # Read in
       temp <- s3read_using(FUN = read.fst, bucket = "uncbullpen", object = key)
-      ret <- rbind(ret, temp)
+      ret <- rbind(ret, temp) # Bind together
     }
   }
-  return(ret)
+  return(ret) # Output live game df
 }
 
-
+#' @title Get Summary Statistics
+#' @description Given a dataframe of appearance data or sessions, obtain the
+#'              relevant summary statistics: RelSpeed, SpinRate, TaggedPitchType,
+#'              InducedVertBreak, HorzBreak, RelHeight, Tilt.
+#' @param data The relevant data (usually just a subset of available TM data).
+#' @param pitcher The pitcher for which we are determining these stats (usually given in-app).
+#' @param dates A vector of dates for which we filter the data (usually given in-app if needed).
+#' @param flag A boolean value that allows the function to be used for getting summary stats
+#'             before some day, rather than having the program find those days. (Specified in backend code)
 summaryStats <- function(data, pitcher = NA, dates = NA, flag = T) {
   if (flag) {
+    # Get relevant data from appearances/sessions
     temp <- data %>% filter(Pitcher == pitcher) %>% filter(Date %in% dates) %>%
       filter(TaggedPitchType != "Undefined") %>% select(RelSpeed, SpinRate, TaggedPitchType, InducedVertBreak,
                                                         HorzBreak, RelHeight, Tilt)
   } else {
+    # Get relevant data
     temp <- data %>% filter(TaggedPitchType != "Undefined") %>%
       select(RelSpeed, SpinRate, TaggedPitchType, InducedVertBreak, HorzBreak, RelHeight, Tilt)
   }
 
+  # Remove NAs from calcs to force answers to be numeric
   temp <- na.omit(temp)
-
 
   tilts <- averageTilt(temp)
 
+  # use dplyr functions to quickly create many of the metrics
   ret <- temp %>% group_by(TaggedPitchType) %>%
-           summarize(Count = n(),
-                     `Max Velo` = round(max(RelSpeed), 2),
-                     `Avg. Velo` = round(mean(RelSpeed), 2),
-                     `Spin Rate` = round(mean(SpinRate), 2),
-                     `Avg. Vert. Brk` = round(mean(InducedVertBreak), 2),
-                     `Avg. Horz. Brk` = round(mean(HorzBreak), 2),
-                     `Avg. Rel. Height` = round(mean(RelHeight), 2))
+    summarize(Count = n(),
+              `Max Velo` = round(max(RelSpeed), 2),
+              `Avg. Velo` = round(mean(RelSpeed), 2),
+              `Spin Rate` = round(mean(SpinRate), 2),
+              `Avg. Vert. Brk` = round(mean(InducedVertBreak), 2),
+              `Avg. Horz. Brk` = round(mean(HorzBreak), 2),
+              `Avg. Rel. Height` = round(mean(RelHeight), 2))
+
+  # Join df with tilts created in averageTilt function
   ret <- left_join(ret, tilts, by = c("TaggedPitchType" = "TaggedPitchType"))
+  # Make the names pretty
   colnames(ret) <- c("Pitch Type", "Count", "Max. Velo",
-                        "Avg. Velo", "Spin Rate", "Avg. Vert. Brk",
-                        "Avg. Horz. Brk", "Avg. Rel. Height", "Avg. Tilt")
-  return(ret)
+                     "Avg. Velo", "Spin Rate", "Avg. Vert. Brk",
+                     "Avg. Horz. Brk", "Avg. Rel. Height", "Avg. Tilt")
+  return(ret) # Return df
 }
 
+#' @title Determine the i-th Observation of Each Factor in DF (DEPRECATED)
+#' @description This function does not appear to be used in the app. It was at
+#'              one point... so might be best to leave it.
 rowNmbrFact <- function(data, factor) {
   v <- vector("numeric",length = length(unique(factor)))
   names(v) <- unique(factor)
@@ -68,9 +107,12 @@ rowNmbrFact <- function(data, factor) {
   return(data)
 }
 
+#' @title Computing Average Tilts
+#' @description Because tilts are strings in TM Data, averaging them is hard.
+#'              This function takes the tilets and determines, to the nearest
+#'              quarter-hour, the average tilt. Used in summaryStats function.
 averageTilt <- function(df) {
   ret <- data.frame()
-
 
   for (pt in unique(df$TaggedPitchType)) {
     if (pt != "Undefined") {
@@ -113,14 +155,20 @@ averageTilt <- function(df) {
     }
   }
 
-
   colnames(ret) <- c("TaggedPitchType", "Avg. Tilt")
   return(ret)
 }
 
 
+#' @title Plot Metrics Over Time
+#' @description Given a dataframe of a pitcher's session, plot metrics over time.
+#'              (This is likely one of the things we want to optimize. This code is from
+#'              Winter of 2020.)
+#' @param df Dataframe of interest that contains session data
+#' @param pitcher Pitcher that we want to condition on
+#' @param dates Dates of interest
+#' @param response The metric we want to plot
 timeGraphs <- function(df, pitcher, dates, response) {
-  # Make this factored by "PT, Date" together
 
   df <- df %>% filter(Pitcher == pitcher) %>%
     filter(TaggedPitchType != "Undefined") %>%
@@ -167,17 +215,27 @@ timeGraphs <- function(df, pitcher, dates, response) {
     )
 }
 
+#' @title Use Already-Crated Naive Bayes Models
+#' @description For the NBC Performance Models, this function uses them!
+#'              (May be optimized in future if we decided to switch to
+#'               Random Forests or a Neural Network approach.)
+#' @param test A 'test' dataframe for which we want to predict probabilities.
+#' @param pitcherSide String informing if Pitcher is Righty/Lefty
+#' @param batterSide 'pitcherSide'... but for hitters.
+#' @param whiffOrCS Boolean that lets code know which models to use
 useModels <- function(test, pitcherSide, batterSide, whiffOrCS) {
-  modDir <- ifelse(whiffOrCS, "WhiffModels", "CSModels")
-  modStr <- paste0(ifelse(pitcherSide == "Left", "l", "r"),
-               ifelse(batterSide == "Left", "l", "r"))
+  modDir <- ifelse(whiffOrCS, "WhiffModels", "CSModels") # Which models do I use?
+  modStr <- paste0(ifelse(pitcherSide == "Left", "l", "r"), # Which handedness do I consider?
+                   ifelse(batterSide == "Left", "l", "r"))
 
-  fbNBC <- readRDS(paste0("./", modDir, "/fbMod", modStr, ".rds"))
-  chNBC <- readRDS(paste0("./", modDir, "/chMod", modStr, ".rds"))
-  brNBC <- readRDS(paste0("./", modDir, "/brMod", modStr, ".rds"))
+  fbNBC <- readRDS(paste0("./", modDir, "/fbMod", modStr, ".rds")) # Get me FB mod
+  chNBC <- readRDS(paste0("./", modDir, "/chMod", modStr, ".rds")) # Get me CH mod
+  brNBC <- readRDS(paste0("./", modDir, "/brMod", modStr, ".rds")) # Get me BR mod
 
   pWhiff <- c()
   predWhiff <- c()
+
+  # Predict accordingly using the runNBC function to run the models
   for (i in 1:nrow(test)) {
     pt <- test$updPT[i]
     if (pt == "FB") {
@@ -194,23 +252,18 @@ useModels <- function(test, pitcherSide, batterSide, whiffOrCS) {
     pWhiff <- append(pWhiff, 1 - pred)
     predWhiff <- append(predWhiff, as.numeric(predC) - 1)
   }
-  #tryCatch(
-  #  expr = {
-  #    pWhiff <- rfUtilities::probability.calibration(y = predWhiff, p = pWhiff,
-  #                                      regularization = T)},
-  #  warning = function(w) {
-  #    pWhiff <- pWhiff
-  #  },
-  #  error = function(e) {
-  #    pWhiff <- pWhiff
-  #  }
-  #)
+
   return(pWhiff)
 }
 
+#' @title Prepare Data for Modeling
+#' @description To assist the modeling process, we generally only consider
+#'              pitches within a certain range of the plate. This function
+#'              filters other pitches out, then categorizes the TaggedPitchType
+#'              so that the modeling process goes even smoother.
 prep <- function(data) {
-  sz <- data.frame(xmin = -0.95,
-                   xmax = 0.95,
+  sz <- data.frame(xmin = -1.2,
+                   xmax = 1.2,
                    ymin = 1.525,
                    ymax = 3.316)
 
@@ -227,12 +280,14 @@ prep <- function(data) {
                                      ifelse(data$TaggedPitchType == "Slider", "BR",
                                             ifelse(data$TaggedPitchType == "Splitter", "CH",
                                                    ifelse(data$TaggedPitchType == "Cutter", "BR",
-                                                      ifelse(data$TaggedPitchType == "Sinker", "BR",
-                                                          data$TaggedPitchType)))))))
+                                                          ifelse(data$TaggedPitchType == "Sinker", "BR",
+                                                                 data$TaggedPitchType)))))))
 
   return(data)
 }
 
+#' @title Run an NBC Model on Data
+#' @description Predict using an NBC data either the outcome 'class' or probability 'raw.'
 runNBC <- function(nbc, data, class = F) {
   if (class) {
     return(predict(nbc, newdata = data, type = "class"))
@@ -241,6 +296,7 @@ runNBC <- function(nbc, data, class = F) {
   }
 }
 
+#' @title Make a Strikezone Plot Filtered by Predicted Whiff Prob.
 makeWhiffPlot <- function(data, batterSide, minWF, maxWF) {
   if (batterSide == "Left") {
     data <- data %>% filter(minWF <= pWhiffL) %>% filter(pWhiffL <= maxWF)
@@ -249,32 +305,33 @@ makeWhiffPlot <- function(data, batterSide, minWF, maxWF) {
   }
 
   fig <- plot_ly(
-      type = "scatter",
-      mode = "markers",
-      x = ~data$PlateLocSide,
-      y = ~data$PlateLocHeight,
-      color = ~as.factor(data$TaggedPitchType),
-      hoverinfo = "text",
-      text = ~paste("Whiff% vs. LHH: ", round(100 * data$pWhiffL, 2),
-                    "\n Whiff% vs. RHH: ", round(100 * data$pWhiffR, 2),
-                    "\n Velo: ", round(data$RelSpeed, 1), " MPH",
-                    "\n Spin: ", round(data$SpinRate, 1), " RPM",
-                    "\n Tilt: ", data$Tilt, sep = "")
-    ) %>% layout(
-      shapes = list(type = "rect",
-                    line = list(color = "blue"),
-                    x0 = -0.95,
-                    x1 = 0.95,
-                    xref = "x",
-                    y0 = 1.525,
-                    y1 = 3.316,
-                    yref = "y"),
-      xaxis = list(title = "Plate Side"),
-      yaxis = list(title = "Plate Height")
-    )
+    type = "scatter",
+    mode = "markers",
+    x = ~data$PlateLocSide,
+    y = ~data$PlateLocHeight,
+    color = ~as.factor(data$TaggedPitchType),
+    hoverinfo = "text",
+    text = ~paste("Whiff% vs. LHH: ", round(100 * data$pWhiffL, 2),
+                  "\n Whiff% vs. RHH: ", round(100 * data$pWhiffR, 2),
+                  "\n Velo: ", round(data$RelSpeed, 1), " MPH",
+                  "\n Spin: ", round(data$SpinRate, 1), " RPM",
+                  "\n Tilt: ", data$Tilt, sep = "")
+  ) %>% layout(
+    shapes = list(type = "rect",
+                  line = list(color = "blue"),
+                  x0 = -0.95,
+                  x1 = 0.95,
+                  xref = "x",
+                  y0 = 1.525,
+                  y1 = 3.316,
+                  yref = "y"),
+    xaxis = list(title = "Plate Side"),
+    yaxis = list(title = "Plate Height")
+  )
   return(fig)
 }
 
+#' @title Make a Strikezone Plot Filtered by Predicted Called-Strike Prob.
 makeCSPlot <- function(data, batterSide, minCS, maxCS) {
   if (batterSide == "Left") {
     data <- data %>% filter(minCS <= pCSL) %>% filter(pCSL <= maxCS)
@@ -317,6 +374,7 @@ revRow <- function(df) {
   return(ret)
 }
 
+#' @title Shorten a Pitch Reference for Ease-of-Viewing in App
 shortenRef <- function(refs) {
   ret <- data.frame()
   for (i in 1:nrow(refs)) {
@@ -331,6 +389,7 @@ shortenRef <- function(refs) {
   return(ret)
 }
 
+#' @title Construct a Visual to Accompany a Note Left in the App
 constructViz <- function(df) {
   plot_ly(type = "scatter",
           mode = "markers",
@@ -358,6 +417,7 @@ constructViz <- function(df) {
                           yaxis = list(title = "Plate Height"))
 }
 
+#' @title Create the 'Pitch Outcomes' Table from the Main App
 pitchOutcomes <- function(df, flag = T) {
   if (flag) {
     ret <- df %>% filter(BatterSide == "Left") %>% group_by(TaggedPitchType) %>%

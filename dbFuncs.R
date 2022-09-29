@@ -61,7 +61,6 @@ addNote <- function(conn, login, title, message, listUID) {
 }
 
 getNotes <- function(conn) {
-  print(dbGetQuery(conn, "SELECT * FROM Notes ORDER BY noteid DESC;"))
   return(dbGetQuery(conn, "SELECT * FROM Notes ORDER BY noteid DESC;"))
 }
 
