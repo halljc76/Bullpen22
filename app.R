@@ -163,6 +163,7 @@ server <- function(input, output, session) {
                            testDataDV = NULL, allNotes = NULL, allRefs = NULL,
                            refData = NULL, sessionDV = NULL, uids = c(), refdUIDs = c(),
                            gotMod = F, readyForModels = F, gotPreds = F, vizData = NULL,
+                           whiffThresh = 0, csThresh = 0,
                            metricChoice = c("RelSpeed", "SpinRate",
                                             "SpinAxis", "RelHeight",
                                             "RelSide", "Extension",
@@ -198,6 +199,11 @@ server <- function(input, output, session) {
       values$livegame <- getOurGames()
       values$gotData <- T
       values$allNotes <- getNotes(con)
+
+      values$whiffThresh <- calThresh(values$livegame, "Whiff")
+      values$csThresh <- calThresh(prep(values$livegame))
+      print(values$whiffThresh)
+      print(values$csThresh)
     }
   })
 
@@ -423,16 +429,16 @@ server <- function(input, output, session) {
 
       values$testDataPM$pWhiffL <- useModels(values$testDataPM,
                                              unique(values$testDataPM$PitcherThrows[1]),
-                                             "Left", T)
+                                             "Left", T, values$whiffThresh)
       values$testDataPM$pWhiffR <- useModels(values$testDataPM,
                                              unique(values$testDataPM$PitcherThrows[1]),
-                                             "Right", T)
+                                             "Right", T, values$whiffThresh)
       values$testDataPM$pCSL <- useModels(values$testDataPM,
                                           unique(values$testDataPM$PitcherThrows[1]),
-                                          "Left", F)
+                                          "Left", F, values$csThresh)
       values$testDataPM$pCSR <- useModels(values$testDataPM,
                                           unique(values$testDataPM$PitcherThrows[1]),
-                                          "Right", F)
+                                          "Right", F, values$csThresh)
       values$gotPreds <- T
     }
   })

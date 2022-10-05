@@ -11,6 +11,7 @@ library(RPostgres)
 library(DBI)
 library(rsconnect)
 library(fst)
+library(rfUtilities)
 
 source("helpers.R")
 source("./dbFuncs.R")

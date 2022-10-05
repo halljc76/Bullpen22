@@ -223,7 +223,7 @@ timeGraphs <- function(df, pitcher, dates, response) {
 #' @param pitcherSide String informing if Pitcher is Righty/Lefty
 #' @param batterSide 'pitcherSide'... but for hitters.
 #' @param whiffOrCS Boolean that lets code know which models to use
-useModels <- function(test, pitcherSide, batterSide, whiffOrCS) {
+useModels <- function(test, pitcherSide, batterSide, whiffOrCS, thresh) {
   modDir <- ifelse(whiffOrCS, "WhiffModels", "CSModels") # Which models do I use?
   modStr <- paste0(ifelse(pitcherSide == "Left", "l", "r"), # Which handedness do I consider?
                    ifelse(batterSide == "Left", "l", "r"))
@@ -240,18 +240,32 @@ useModels <- function(test, pitcherSide, batterSide, whiffOrCS) {
     pt <- test$updPT[i]
     if (pt == "FB") {
       pred <- runNBC(fbNBC, test[i,])[1]
-      predC <- runNBC(fbNBC, test[i,], class = T)
+      #predC <- runNBC(fbNBC, test[i,], class = T)
     } else if (pt == "CH") {
       pred <- runNBC(chNBC, test[i,])[1]
-      predC <- runNBC(chNBC, test[i,], class = T)
+      #predC <- runNBC(chNBC, test[i,], class = T)
     } else {
       pred <- runNBC(brNBC, test[i,])[1]
-      predC <- runNBC(brNBC, test[i,], class = T)
+      #predC <- runNBC(brNBC, test[i,], class = T)
     }
 
     pWhiff <- append(pWhiff, 1 - pred)
-    predWhiff <- append(predWhiff, as.numeric(predC) - 1)
+    #predWhiff <- append(predWhiff, as.numeric(predC) - 1)
   }
+
+  for (p in pWhiff) {
+    if (p >= thresh) {
+      predWhiff <- append(predWhiff, 1)
+    } else {
+      predWhiff <- append(predWhiff, 0)
+    }
+  }
+
+  tryCatch(
+    expr = {pWhiff <- probability.calibration(y = predWhiff, p = pWhiff,
+                                              regularization = T)},
+    error = function(e) {pWhiff <- pWhiff}
+  )
 
   return(pWhiff)
 }
@@ -319,8 +333,8 @@ makeWhiffPlot <- function(data, batterSide, minWF, maxWF) {
   ) %>% layout(
     shapes = list(type = "rect",
                   line = list(color = "blue"),
-                  x0 = -0.95,
-                  x1 = 0.95,
+                  x0 = -1.2,
+                  x1 = 1.2,
                   xref = "x",
                   y0 = 1.525,
                   y1 = 3.316,
@@ -354,8 +368,8 @@ makeCSPlot <- function(data, batterSide, minCS, maxCS) {
   ) %>% layout(
     shapes = list(type = "rect",
                   line = list(color = "blue"),
-                  x0 = -0.95,
-                  x1 = 0.95,
+                  x0 = -1.2,
+                  x1 = 1.2,
                   xref = "x",
                   y0 = 1.525,
                   y1 = 3.316,
@@ -435,4 +449,22 @@ pitchOutcomes <- function(df, flag = T) {
                 `Whiff %` = round(sum(PitchCall %in% c("StrikeSwinging")) / n(),2))
   }
   return(ret)
+}
+
+#' @title Historical Thresholds for Probability Calibration
+#' @description Because it's very hard to evaluate models that predict probabilities with no
+#'              true outcomes given, this function returns historically-seen rates of event
+#'              occurrence, such that predicted probabilities are then calculated and calibrated in
+#'              'useModels'.
+calThresh <- function(games, resp = "") {
+  if (resp == "Whiff") {
+    swings <- games %>% filter(PitchCall %in% c("StrikeSwinging", "InPlay", "FoulBall"))
+    swingRates <- table(swings$PitchCall) / nrow(swings)
+    return(unname(swingRates[which(names(swingRates) == "StrikeSwinging")]))
+  } else {
+    swings <- games %>% filter(PitchCall %in% c("StrikeSwinging", "InPlay", "FoulBall",
+                                                "BallCalled", "StrikeCalled"))
+    generalRates <- table(games$PitchCall) / nrow(games)
+    return(unname(generalRates[which(names(generalRates) == "StrikeCalled")]))
+  }
 }
