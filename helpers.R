@@ -90,7 +90,7 @@ summaryStats <- function(data, pitcher = NA, dates = NA, flag = T) {
   return(ret) # Return df
 }
 
-#' @title Determine the i-th Observation of Each Factor in DF (DEPRECATED)
+#' @title Determine the i-th Observation of Each Factor in DF
 #' @description This function does not appear to be used in the app. It was at
 #'              one point... so might be best to leave it.
 rowNmbrFact <- function(data, factor) {
@@ -170,21 +170,35 @@ averageTilt <- function(df) {
 #' @param response The metric we want to plot
 timeGraphs <- function(df, pitcher, dates, response) {
 
+  df <- df %>% prep()
   df <- df %>% filter(Pitcher == pitcher) %>%
-    filter(TaggedPitchType != "Undefined") %>%
-    filter(!is.na(ZoneSpeed))
+    filter(TaggedPitchType != "Undefined")
+  df$GameOrBullpen <- ifelse(df$Scenario == 0, "Live Game", "Bullpen")
 
   ptWithDate <- c()
   for (i in 1:nrow(df)) {
-    ptWithDate <- append(ptWithDate,
-                         paste(df$TaggedPitchType[i], substr(df$Date[i], 6, 10)))
+   ptWithDate <- append(ptWithDate,
+                       paste(df$TaggedPitchType[i], substr(df$Date[i], 6, 10)))
   }
   df$ptWithDate <- ptWithDate
-
-  df <- rowNmbrFact(df, df$ptWithDate)
   df <- df %>% filter(Date %in% dates)
+  df <- df[order(df$Date),]
 
-  if (response %in% c("ZoneSpeed", "RelSpeed")) {
+  cuts <- c()
+  runningTotal = 0
+  for (j in table(df$Date)) {
+    runningTotal = runningTotal + j
+    cuts <- append(cuts, runningTotal + 0.5)
+  }
+
+  textx <- c()
+  for (k in 2:length(cuts)) {
+    textx <- append(textx, as.integer(round(mean(c(cuts[k],cuts[k-1])),1)))
+  }
+
+  df$Row <- as.integer(row.names(df))
+
+  if (response %in% c("RelSpeed")) {
     suffix <- "MPH"
   } else if (response %in% c("SpinRate")) {
     suffix <- "RPM"
@@ -197,22 +211,34 @@ timeGraphs <- function(df, pitcher, dates, response) {
     suffix <- "ft."
   }
 
-  plot_ly(data = df %>% group_by(df$ptWithDate),
-          x = ~df$Row,
-          y = ~df[,response],
-          type = "scatter",
-          color = ~df$ptWithDate,
-          mode = "lines+markers",
-          hoverinfo = "text",
-          text = ~paste0(df$Row, ": ", round(df[,response], 1), " ", suffix)) %>%
-    layout(xaxis = list(
-      tickvals = ~df$Row,
-      tickangle = 0,
-      title = "Pitch #"),
-      yaxis = (
-        list(title = paste0(response, "(", suffix, ")"))
-      )
-    )
+  print(df)
+  fig <- ggplot(data = df) + geom_point(mapping = aes(x = Row,
+                                              y = df[,response],
+                                              color = updPT)) +
+                     geom_line(mapping = aes(x = Row, y = df[,response],
+                                             color = updPT)) +
+   geom_tile(aes(x = Row, y = median(df[,response]), height = Inf,
+                 fill=as.factor(GameOrBullpen)),
+             col = "NA", alpha = 0.2) + geom_vline(xintercept = cuts) +
+    labs(y = response, x = "Pitch Index")
+  fig
+
+  # plot_ly(data = df %>% group_by(df$ptWithDate),
+  #         x = ~df$Row,
+  #       y = ~df[,response],
+  #     type = "scatter",
+  #         color = ~df$ptWithDate,
+  #       mode = "lines+markers",
+  #         hoverinfo = "text",
+  #         text = ~paste0(df$Row, ": ", round(df[,response], 1), " ", suffix)) %>%
+  #   layout(xaxis = list(
+  #     tickvals = ~df$Row,
+  #     tickangle = 0,
+  #     title = "Pitch #"),
+  #     yaxis = (
+  #       list(title = paste0(response, "(", suffix, ")"))
+  #     )
+  #   )
 }
 
 #' @title Use Already-Crated Naive Bayes Models
@@ -397,9 +423,9 @@ shortenRef <- function(refs) {
     date <- refs$Date[i]
     pitchType <- refs$TaggedPitchType[i]
     velo <- round(as.numeric(refs$ZoneSpeed[i]), 2)
-    ret <- rbind(ret, c(lastName,date,pitchType,toString(velo),refs$PitchUID[i]))
+    ret <- rbind(ret, c(lastName,date,pitchType,toString(velo),refs$PitchUID[i],refs$PitcherId[i]))
   }
-  colnames(ret) <- c("LastName", "Date", "PitchType", "ZoneSpeed", "PitchUID")
+  colnames(ret) <- c("LastName", "Date", "PitchType", "ZoneSpeed", "PitchUID", "PitcherId")
   return(ret)
 }
 
@@ -433,15 +459,16 @@ constructViz <- function(df) {
 
 #' @title Create the 'Pitch Outcomes' Table from the Main App
 pitchOutcomes <- function(df, flag = T) {
+  df$`Pitch Type` <- df$TaggedPitchType
   if (flag) {
-    ret <- df %>% filter(BatterSide == "Left") %>% group_by(TaggedPitchType) %>%
+    ret <- df %>% filter(BatterSide == "Left") %>% group_by(`Pitch Type`) %>%
       summarise(`Count` = n(),
                 `# Swings` = sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")),
                 `Swing %` = round(sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")) / n(),2),
                 `St. Swing %` = round(sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")) / n(),2),
                 `Whiff %` = round(sum(PitchCall %in% c("StrikeSwinging")) / n(),2))
   } else {
-    ret <- df %>% filter(BatterSide == "Right") %>% group_by(TaggedPitchType) %>%
+    ret <- df %>% filter(BatterSide == "Right") %>% group_by(`Pitch Type`) %>%
       summarise(`Count` = n(),
                 `# Swings` = sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")),
                 `Swing %` = round(sum(PitchCall %in% c("StrikeSwinging", "FoulBall", "InPlay")) / n(),2),

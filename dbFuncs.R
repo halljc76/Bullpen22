@@ -1,16 +1,9 @@
-loginUser <- function(conn, user, pass) {
-  # Returns NA --> Username not found
-  # Returns FALSE --> Wrong password
-  # Returns TRUE --> Authenticated User
+getUsers <- function(conn) {
+  dbGetQuery(conn, "SELECT L.name FROM Logins L;")
+}
 
-  ret <- unname(pass == dbGetQuery(conn, glue(
-    "SELECT L.Password FROM Logins L
-   WHERE L.Login = '{name}'", name = user)))[1]
-  if (is.na(ret)) {
-    return(F)
-  } else {
-    return(ret)
-  }
+loginUser <- function(conn, pass) {
+  return(pass == 'gdtbath')
 }
 
 getPitcher <- function(conn, login) {
@@ -33,6 +26,12 @@ addNote <- function(conn, login, title, message, listUID) {
     noteID <- q1      # It works. :)
     print(paste("NoteID", noteID))
   }
+
+  message <- cleanString(message)
+  title <- cleanString(title)
+
+  print(paste0("Cleaned Title: ", title))
+  print(paste0("Cleaned Message: ", message))
 
   prep <- paste0("INSERT INTO Notes VALUES (", q1, ",'",
            as.character.Date(Sys.Date()), "','", login, "',", "'", title, "',", "'", message, "'", ");")
@@ -58,6 +57,24 @@ addNote <- function(conn, login, title, message, listUID) {
 
   print(dbGetQuery(conn, "SELECT * FROM Notes;"))
   print(dbGetQuery(conn, "SELECT * FROM Refs;"))
+}
+
+cleanString <- function(msg) {
+  idx0 <- gregexpr("''",msg)[[1]][1]
+  if (idx0 != -1) {
+    before <- substr(msg,1,idx0-1)
+    after <- substr(msg,idx0+2,nchar(msg))
+    return(paste0(before,"'",after))
+  }
+
+  idx <- gregexpr("'",msg)[[1]][1]
+  if (idx != -1) {
+    before <- substr(msg,1,idx-1)
+    after <- substr(msg,idx+1,nchar(msg))
+    return(paste0(before,"''",after))
+  } else {
+    return(msg)
+  }
 }
 
 getNotes <- function(conn) {
