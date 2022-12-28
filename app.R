@@ -7,80 +7,90 @@ ui <- dashboardPage(
         menuItem(tabName = "Notes", text = "Notes", icon = icon("pencil")),
         menuItem(tabName = "Comp", text = "Sessions vs. Games", icon = icon("film")),
         menuItem(tabName = "Metrics", text = "Metrics", icon = icon("arrow-up")),
-        menuItem(tabName = "Perf", text = "Performance Models", icon = icon("gear"))
+        menuItem(tabName = "Perf", text = "Performance Models", icon = icon("gear"),
+                 menuSubItem("Whiff/Called-Strike Model",
+                             tabName = "WhiffCS",icon = icon("arrow-right")),
+                 menuSubItem("Pitch-Class Model", tabName = "PClass",
+                             icon = icon("magnifying-glass")))
     )
   ),
   dashboardBody(
     tabItems(
       tabItem(tabName = "Home",
-              column(width = 6,
+              column(width = 12,
               selectInput(inputId = "pitcherSelectHP", label = "Player Select:",
                           choices = NULL, multiple = FALSE),
               fluidRow(
                 uiOutput("mostRecentDate"),
-                dataTableOutput("summLastDisplay"),
-                h4("Entire Season's Sessions Data"),
-                dataTableOutput("summSznDisplay")
+                uiOutput("summLastDisplay"),
+                h4("All Bullpen Sessions This Season"),
+                uiOutput("summSznDisplay")
                 ),
               style = "overflow-y:scroll;
-                       width:650px;
                        height:550px;
                        border-radius:15px;
                        padding-right:40px;"
-              ),
-              column(width = 4,
-                     h3("Team Notes"),
-                     h4("Select Note:"),
-                     fluidRow(
-                     dataTableOutput("notesTable"),
-                     style = "overflow-y:scroll;
-                              height:200px;"
-                     ),
-                     br(),
-                     fluidRow(
-                     h3(
-                       textOutput("selectedNoteTitle")),
-                     hr(),
-                     textOutput("selectedNoteMsg"),
-                     style = "background-color:white;
-                              border-radius:15px;
-                              padding-left:5px;"),
-                     br(),
-                     actionButton("vizView", label = "View Associated Pitches",
-                                  class = "btn-success", icon = icon("binoculars"))
               )),
       tabItem(tabName = "Notes",
-              sidebarLayout(
-                sidebarPanel = sidebarPanel(
-                  width = 4,
-                    h2("Add Note"),
-                           textInput(inputId = "noteTitle",
-                                     label = "Title",
-                                     width = "100%",
-                                     placeholder = "Main Point or Message"),
-                           textAreaInput(inputId = "noteMessage",
-                                         label = "Note",
-                                         width = "100%",
-                                         placeholder = "Say something! (Avoid using quotes around words if possible, for now.
-                                 The app currently cannot handle that type of input.)"),
-                           actionButton(inputId = "noteAdd", label = "Add Note", class = "btn-primary"),
-                    br(),
-                           h5(HTML("<b>Include Pitches</b>")),
-                           h5("Any included pitches below will be included. Deselect pitches to the right
+
+              tabsetPanel(
+                tabPanel("Add Note",
+                         br(),
+                         sidebarLayout(
+                           sidebarPanel = sidebarPanel(
+                             width = 4,
+                             h2("Add Note"),
+                             textInput(inputId = "noteTitle",
+                                       label = "Title",
+                                       width = "100%",
+                                       placeholder = "Main Point or Message"),
+                             textAreaInput(inputId = "noteMessage",
+                                           label = "Note",
+                                           width = "100%",
+                                           placeholder = "Say something! (Avoid using quotes around words if possible, for now. The app currently cannot handle that type of input.)"),
+                             actionButton(inputId = "noteAdd", label = "Add Note", class = "btn-primary"),
+                             br(),
+                             h5(HTML("<b>Include Pitches</b>")),
+                             h5("Any included pitches below will be included. Deselect pitches to the right
                                to un-include them. Click the 'Clear' Button to clear the table below."),
-                           actionButton(inputId = "refClear", label = "Clear Ref. Table", class = "btn-secondary"),
-                           tableOutput(outputId = "refSelectTable")
-              ),
-            mainPanel = mainPanel(
-            h4("Include Pitches in Note! (Click Once to Select -- Click Headings to Sort By Category)"),
-            fluidRow(
-              column(width = 4,
-                     selectInput(inputId = "pitcherSelectDV", label = "Player Select:",
-                                 choices = NULL, multiple = FALSE)),
-              column(width = 4,
-                     selectInput(inputId = "datesSelectDV", label = "Select Sessions:",
-                                 choices = NULL, multiple = TRUE)),
-            DT::dataTableOutput("sessionDataView"))))),
+                             actionButton(inputId = "refClear", label = "Clear Ref. Table", class = "btn-primary"),
+                             tableOutput(outputId = "refSelectTable")
+                           ),
+                           mainPanel = mainPanel(
+                             h4("Include Pitches in Note! (Click Once to Select -- Click Headings to Sort By Category)"),
+                             fluidRow(
+                               column(width = 4,
+                                      selectInput(inputId = "pitcherSelectDV", label = "Player Select:",
+                                                  choices = NULL, multiple = FALSE)),
+                               column(width = 4,
+                                      selectInput(inputId = "datesSelectDV", label = "Select Sessions:",
+                                                  choices = NULL, multiple = TRUE)),
+                               DT::dataTableOutput("sessionDataView"))))),
+                tabPanel("View Notes",
+                                h3("Team Notes"),
+                                selectInput(inputId = "pitcherSelectNV", label = "Player Select:",
+                                     choices = NULL, multiple = FALSE),
+                                column(width = 6,
+                                       h4("Select Note:"),
+                                       fluidRow(
+                                         dataTableOutput("notesTable"),
+                                         style = "overflow-y:scroll;
+                                                  height:100px;
+                                                  padding-right:10px;"
+                                       )),
+                                column(width = 6,
+                                       h3(
+                                         textOutput("selectedNoteTitle")),
+                                       hr(),
+                                       textOutput("selectedNoteMsg"),
+                                       style = "background-color:white;
+                              border-radius:15px;
+                              padding-left:5px;"),
+                              dataTableOutput("ascPitchesTable")
+                         )
+                       #         actionButton("vizView", label = "View Associated Pitches",
+                       #                       class = "btn-success", icon = icon("binoculars"))
+              )),
       tabItem(tabName = "Comp",
               selectInput(inputId = "pitcherSelectSG", label = "Player Select:",
                           choices = NULL, multiple = FALSE),
@@ -112,7 +122,7 @@ ui <- dashboardPage(
               br(),
               fluidRow(column(12,plotOutput("metricPlot2")))
               ),
-      tabItem(tabName = "Perf",
+      tabItem(tabName = "WhiffCS",
               column(width = 4,
               selectInput(inputId = "pitcherSelectPM", label = "Player Select:",
                           choices = NULL, multiple = FALSE)),
@@ -162,7 +172,8 @@ server <- function(input, output, session) {
                                             "SpinAxis", "RelHeight",
                                             "RelSide", "Extension",
                                             "HorzBreak", "InducedVertBreak",
-                                            "PlateLocHeight", "PlateLocSide"))
+                                            "PlateLocHeight", "PlateLocSide"),
+                           pitcherList = readLines("./2023PitcherList.txt"))
 
   observe({
     if (!values$gotData) {
@@ -170,28 +181,35 @@ server <- function(input, output, session) {
       values$data$Date <- strftime(as.Date(values$data$Date, format = "%m/%d/%Y"),
                                    format = "%Y-%m-%d")
       values$livegame <- getOurGames()
+
       values$gotData <- T
       values$allNotes <- getNotes(con)
 
-      values$whiffThresh <- calThresh(values$livegame, "Whiff")
-      values$csThresh <- calThresh(prep(values$livegame))
+      # values$whiffThresh <- calThresh(values$livegame, "Whiff")
+      # values$csThresh <- calThresh(prep(values$livegame))
     }
   })
 
   observeEvent(values$gotData, {
+    options1 <- unique(values$data$Pitcher)
+    options2 <- unique(values$livegame$Pitcher)
+
     updateSelectInput(inputId = "pitcherSelectHP",
-                      choices = unique(values$data$Pitcher))
+                      choices = sort(intersect(options1, values$pitcherList)))
+    updateSelectInput(inputId = "pitcherSelectNV",
+                      choices = sort(intersect(options1, values$pitcherList)))
     updateSelectInput(inputId = "pitcherSelectMT",
-                      choices = unique(values$data$Pitcher))
+                      choices = sort(intersect(options1, values$pitcherList)))
     updateSelectInput(inputId = "pitcherSelectSG",
-                      choices = unique(intersect(
+                      choices = sort(unique(intersect(intersect(
                                     values$livegame$Pitcher,
-                                    values$data$Pitcher)
-                                ))
+                                    values$data$Pitcher),
+                                    values$pitcherList)
+                                )))
     updateSelectInput(inputId = "pitcherSelectPM",
-                      choices = unique(values$data$Pitcher))
+                      choices =  sort(intersect(options1, values$pitcherList)))
     updateSelectInput(inputId = "pitcherSelectDV",
-                      choices = unique(values$data$Pitcher))
+                      choices =  sort(intersect(options1, values$pitcherList)))
 
     updateSelectInput(inputId = "metricSelect1",
                       choices = values$metricChoice)
@@ -207,10 +225,19 @@ server <- function(input, output, session) {
                                                               Extension)})
   })
 
-  observeEvent(values$allNotes, {
-    temp <- data.frame(Date = values$allNotes[,2], User = values$allNotes[,3], Title = values$allNotes[,4])
-    output$notesTable <- renderDataTable({DT::datatable(temp, options = list(dom = 't', pageLength = -1),
-                                                        rownames = F, selection = list(mode = "single"))})
+  observeEvent({values$allNotes
+                input$pitcherSelectNV}, {
+    if (input$pitcherSelectNV != "" && !(nrow(values$allNotes) == 0)) {
+      temp <- data.frame(Date = values$allNotes[,2], User = values$allNotes[,3], Title = values$allNotes[,4])
+      temp$User <- trimws(temp$User, which = c("both"))
+      p <- strsplit(gsub(" ", "", input$pitcherSelectNV),",")[[1]]
+      p <- paste(p[2], p[1])
+      print(which(temp$User == p))
+      temp <- temp %>% filter(User %in% c(p, "Coach Forbes", "Coach Gaines", "Coach Howell",
+                                             "Coach Wierzbicki", "Da Analytics Team")) # including analytics for testing
+      output$notesTable <- renderDataTable({DT::datatable(temp, options = list(dom = 't', pageLength = -1),
+                                                          rownames = F, selection = list(mode = "single"))})
+    }
   })
 
   observeEvent(input$sessionDataView_rows_selected, {
@@ -307,6 +334,18 @@ server <- function(input, output, session) {
     for (uid in refdPitches) {
       values$vizData <- rbind(values$vizData, values$data[values$data$PitchUID == uid,])
     }
+    temp2 <- data.frame(values$vizData %>%
+                          select(TaggedPitchType,
+                                 RelSpeed,
+                                 SpinRate,
+                                 InducedVertBreak,
+                                 HorzBreak,
+                                 RelHeight,
+                                 Tilt))
+    temp2 <- unique(temp2)
+    colnames(temp2) <- c("Pitch Type", "Velo", "Spin", "Vert. Break", "Horz. Break",
+                         "Release Height", "Tilt")
+    output$ascPitchesTable <- renderDataTable(DT::datatable(temp2,rownames = F))
   })
 
   observeEvent(input$vizView, {
@@ -328,18 +367,37 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$pitcherSelectHP, {
-    if (values$gotData) {
-      values$testDataHP <- prep(values$data %>% filter(Pitcher == input$pitcherSelectHP))
-      output$summSznDisplay <- renderDataTable({DT::datatable(summaryStats(values$testDataHP,
-                                                               input$pitcherSelectHP, unique(values$testDataHP$Date)),
-                                                               options = list(dom = 't'),rownames = F,
-                                                               selection = "none")})
+    if (values$gotData && input$pitcherSelectHP != "") {
+      values$testDataHP <- values$data %>% filter(Pitcher == input$pitcherSelectHP)
 
-      lastDate <- unique(values$testDataHP$Date)[length(unique(values$testDataHP$Date))]
-      output$mostRecentDate <- renderUI({h4(paste0("Most Recent Session: ", lastDate))})
-      output$summLastDisplay <- renderDataTable({DT::datatable(summaryStats(values$testDataHP, input$pitcherSelectHP,
-                                                                           c(lastDate)), options = list(dom = 't'),
-                                                               rownames = F,selection = "none")})
+      temp <- summaryStats(values$testDataHP,
+                           input$pitcherSelectHP,
+                           unique(values$testDataHP$Date))
+      sznTable <- kable(temp, booktabs=T) %>%
+                  kable_styling(font_size = 13)
+
+      output$summSznDisplay <- renderUI({HTML(sznTable)})
+
+
+      output$mostRecentDate <- renderUI({h4(paste0("Most Recent Bullpen Session: ", max(values$testDataHP$Date)))})
+
+      temp2 <- summaryStats(values$testDataHP %>% filter(Date == max(Date)),
+                            input$pitcherSelectHP, max(values$testDataHP$Date))
+
+      commonPTs <- intersect(temp$`Pitch Type`, temp2$`Pitch Type`)
+      idx <- which(temp2$`Pitch Type` %in% commonPTs)
+      veloAbvAvg <- temp2$`Avg. Velo`[idx] - temp$`Avg. Velo`[idx]
+      spinAbvAvg <- temp2$`Spin Rate`[idx] - temp$`Spin Rate`[idx]
+
+      lastTable <- kable(temp2,booktabs=T) %>%
+                   kable_styling(font_size = 13) %>%
+                     column_spec(3, color = "white",
+                                 background = spec_color2(veloAbvAvg, palette = paletteer_d("RColorBrewer::RdBu"))) %>%
+                     column_spec(4, color = "white",
+                                 background = spec_color2(spinAbvAvg, palette = paletteer_d("RColorBrewer::RdBu")))
+
+
+      output$summLastDisplay <-renderUI({HTML(lastTable)})
     }
   })
 
@@ -370,17 +428,18 @@ server <- function(input, output, session) {
       appearances <- unique(liveapps$Date)
       appearances <- appearances[which(nchar(appearances) > 0)]
       lastApp <- sort(appearances, decreasing = T)[length(appearances)]
+      print(lastApp)
       lastAppDF <- liveapps %>% filter(Date == lastApp)
-
 
 
       output$mostRecentLA <- renderUI({h4(paste0("Last Live Appearance: ", unique(lastApp)[1], " Versus ", unique(lastAppDF$BatterTeam)))})
 
       if (!is.null(lastApp)) {
         seshBefore <- values$data %>% filter(Pitcher == input$pitcherSelectSG) %>%
-          filter(Date <= lastApp)
+          filter(Date < lastApp) %>% filter(Date == max(Date))
+        print(seshBefore)
         seshAfter <- values$data %>% filter(Pitcher == input$pitcherSelectSG) %>%
-          filter(Date > lastApp)
+          filter(Date > lastApp) %>% filter(Date == min(Date))
 
         if (nrow(seshBefore) > 0) {
           output$beforeLAView <- renderDataTable({DT::datatable(summaryStats(seshBefore, flag = F),
@@ -461,16 +520,16 @@ server <- function(input, output, session) {
 
       values$testDataPM$pWhiffL <- useModels(values$testDataPM,
                                              unique(values$testDataPM$PitcherThrows[1]),
-                                             "Left", T, values$whiffThresh)
+                                             "Left", T)
       values$testDataPM$pWhiffR <- useModels(values$testDataPM,
                                              unique(values$testDataPM$PitcherThrows[1]),
-                                             "Right", T, values$whiffThresh)
+                                             "Right", T)
       values$testDataPM$pCSL <- useModels(values$testDataPM,
                                           unique(values$testDataPM$PitcherThrows[1]),
-                                          "Left", F, values$csThresh)
+                                          "Left", F)
       values$testDataPM$pCSR <- useModels(values$testDataPM,
                                           unique(values$testDataPM$PitcherThrows[1]),
-                                          "Right", F, values$csThresh)
+                                          "Right", F)
       values$gotPreds <- T
     }
   })

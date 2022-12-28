@@ -6,13 +6,17 @@ loginUser <- function(conn, pass) {
   return(pass == 'gdtbath')
 }
 
+getName <- function(conn, login) {
+  return(dbGetQuery(conn, glue("SELECT L.name FROM Logins L WHERE L.login = '{l}'",
+                               l = login))[[1]])
+}
+
 getPitcher <- function(conn, login) {
   if (login == "analytics") {
     return("Buchner, Bradley")
   }
 
-  ret <- dbGetQuery(conn, glue("SELECT L.name FROM Logins L WHERE L.login = '{l}'",
-                               l = login))[[1]]
+  ret <- getName(conn, login)
   names <- strsplit(ret, " ")
   return(paste(names[[1]][2], names[[1]][1], sep = ", "))
 }
@@ -85,3 +89,4 @@ getSpecRefs <- function(conn, noteid) {
   ret <- dbGetQuery(conn, glue("SELECT R.pitchuid FROM Refs L WHERE R.noteid = '{n}'",
                                n = noteid))[[1]]
 }
+

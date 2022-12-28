@@ -79,7 +79,7 @@ summaryStats <- function(data, pitcher = NA, dates = NA, flag = T) {
               `Spin Rate` = round(mean(SpinRate), 2),
               `Avg. Vert. Brk` = round(mean(InducedVertBreak), 2),
               `Avg. Horz. Brk` = round(mean(HorzBreak), 2),
-              `Avg. Rel. Height` = round(mean(RelHeight), 2))
+              `Avg. Rel. Height` = round(mean(RelHeight), 2)) %>% arrange(desc(Count))
 
   # Join df with tilts created in averageTilt function
   ret <- left_join(ret, tilts, by = c("TaggedPitchType" = "TaggedPitchType"))
@@ -169,11 +169,15 @@ averageTilt <- function(df) {
 #' @param dates Dates of interest
 #' @param response The metric we want to plot
 timeGraphs <- function(df, pitcher, dates, response) {
-
-  df <- df %>% prep()
   df <- df %>% filter(Pitcher == pitcher) %>%
     filter(TaggedPitchType != "Undefined")
+  df$TaggedPitchType <- ifelse(df$TaggedPitchType == "FB", "Fastball",
+                             ifelse(df$TaggedPitchType == "CH", "Changeup",
+                                    ifelse(df$TaggedPitchType == "SL", "Slider",
+                                           df$TaggedPitchType)))
+
   df$GameOrBullpen <- ifelse(df$Scenario == 0, "Live Game", "Bullpen")
+  df <- na.omit(df)
 
   ptWithDate <- c()
   for (i in 1:nrow(df)) {
@@ -211,16 +215,18 @@ timeGraphs <- function(df, pitcher, dates, response) {
     suffix <- "ft."
   }
 
-  print(df)
+  if (response == "Extension") {
+    print(df)
+  }
   fig <- ggplot(data = df) + geom_point(mapping = aes(x = Row,
                                               y = df[,response],
-                                              color = updPT)) +
+                                              color = TaggedPitchType)) +
                      geom_line(mapping = aes(x = Row, y = df[,response],
-                                             color = updPT)) +
+                                             color = TaggedPitchType)) +
    geom_tile(aes(x = Row, y = median(df[,response]), height = Inf,
                  fill=as.factor(GameOrBullpen)),
              col = "NA", alpha = 0.2) + geom_vline(xintercept = cuts) +
-    labs(y = response, x = "Pitch Index")
+    labs(y = response, x = "Pitch Index", color = "Pitch Type", fill = "Game/Bullpen?")
   fig
 
   # plot_ly(data = df %>% group_by(df$ptWithDate),
@@ -241,6 +247,39 @@ timeGraphs <- function(df, pitcher, dates, response) {
   #   )
 }
 
+#' @title Get Variables of Interest for Modeling
+#' @description For modeling purposes, filter prepared datasets into columns of interest
+trimTestDataset <- function(data) {
+  # These are the features! (Response is whatever binary response desired/made)
+  cols <- c("updPT", "Extension", "InducedVertBreak", "HorzBreak",
+            "PlateLocHeight", "PlateLocSide")
+  data <- data[,cols]
+  data
+}
+
+#' @title One-Hot Encoder for Categorical Variables
+#' @description Input a vector of a categorical variable, output encoded df.
+oneHotEncoder <- function(v) {
+  levels <- unique(v)
+
+  ret <- data.frame()
+  for (i in 1:length(v)) {
+    temp <- c()
+    for (j in 1:length(levels)) {
+      temp <- append(temp,
+                     ifelse(v[i] == levels[j],1,0))
+    }
+    ret <- rbind(ret,temp)
+  }
+
+  names <- c()
+  for (j in 1:length(levels)) {
+    names <- append(names,levels[j])
+  }
+  colnames(ret) <- names
+  return(ret)
+}
+
 #' @title Use Already-Crated Naive Bayes Models
 #' @description For the NBC Performance Models, this function uses them!
 #'              (May be optimized in future if we decided to switch to
@@ -249,47 +288,68 @@ timeGraphs <- function(df, pitcher, dates, response) {
 #' @param pitcherSide String informing if Pitcher is Righty/Lefty
 #' @param batterSide 'pitcherSide'... but for hitters.
 #' @param whiffOrCS Boolean that lets code know which models to use
-useModels <- function(test, pitcherSide, batterSide, whiffOrCS, thresh) {
-  modDir <- ifelse(whiffOrCS, "WhiffModels", "CSModels") # Which models do I use?
+useModels <- function(test, pitcherSide, batterSide, whiffOrCS) {
+  modDir <- ifelse(whiffOrCS, "WhiffMods", "CSMods") # Which models do I use?
+
   modStr <- paste0(ifelse(pitcherSide == "Left", "l", "r"), # Which handedness do I consider?
                    ifelse(batterSide == "Left", "l", "r"))
 
-  fbNBC <- readRDS(paste0("./", modDir, "/fbMod", modStr, ".rds")) # Get me FB mod
-  chNBC <- readRDS(paste0("./", modDir, "/chMod", modStr, ".rds")) # Get me CH mod
-  brNBC <- readRDS(paste0("./", modDir, "/brMod", modStr, ".rds")) # Get me BR mod
+  print(paste0("./",modDir,"/",modStr,"XGB.model"))
+  model <- xgb.load(paste0("./",modDir,"/",modStr,"XGB.model"))
+
+  # fbNBC <- readRDS(paste0("./", modDir, "/fbMod", modStr, ".rds")) # Get me FB mod
+  # chNBC <- readRDS(paste0("./", modDir, "/chMod", modStr, ".rds")) # Get me CH mod
+  # brNBC <- readRDS(paste0("./", modDir, "/brMod", modStr, ".rds")) # Get me BR mod
 
   pWhiff <- c()
   predWhiff <- c()
 
+  test <- trimTestDataset(test)
+  test <- cbind(test %>% select(-c("updPT")), oneHotEncoder(test$updPT))
+  #print(test[1:10,])
+
   # Predict accordingly using the runNBC function to run the models
   for (i in 1:nrow(test)) {
-    pt <- test$updPT[i]
-    if (pt == "FB") {
-      pred <- runNBC(fbNBC, test[i,])[1]
-      #predC <- runNBC(fbNBC, test[i,], class = T)
-    } else if (pt == "CH") {
-      pred <- runNBC(chNBC, test[i,])[1]
-      #predC <- runNBC(chNBC, test[i,], class = T)
-    } else {
-      pred <- runNBC(brNBC, test[i,])[1]
-      #predC <- runNBC(brNBC, test[i,], class = T)
-    }
+    temp <- test[i,]
+    pred <- runNBC(model, as.matrix(temp))
 
-    pWhiff <- append(pWhiff, 1 - pred)
+    # pt <- test$updPT[i]
+    # if (pt == "FB") {
+    #   pred <- runNBC(fbNBC, test[i,])[1]
+    #   #predC <- runNBC(fbNBC, test[i,], class = T)
+    # } else if (pt == "CH") {
+    #   pred <- runNBC(chNBC, test[i,])[1]
+    #   #predC <- runNBC(chNBC, test[i,], class = T)
+    # } else {
+    #   pred <- runNBC(brNBC, test[i,])[1]
+    #   #predC <- runNBC(brNBC, test[i,], class = T)
+    # }
+
+    pWhiff <- append(pWhiff, pred)
     #predWhiff <- append(predWhiff, as.numeric(predC) - 1)
   }
 
   for (p in pWhiff) {
-    if (p >= thresh) {
-      predWhiff <- append(predWhiff, 1)
+    if (whiffOrCS) {
+      if (p >= 0.875) {
+        predWhiff <- append(predWhiff, 1)
+      } else {
+        predWhiff <- append(predWhiff, 0)
+      }
     } else {
-      predWhiff <- append(predWhiff, 0)
+      if (p >= 0.5) {
+        predWhiff <- append(predWhiff, 1)
+      } else {
+        predWhiff <- append(predWhiff, 0)
+      }
     }
   }
 
+  #print(pWhiff)
   tryCatch(
     expr = {pWhiff <- probability.calibration(y = predWhiff, p = pWhiff,
-                                              regularization = T)},
+                                              regularization = T)
+            print("Probabilities calibrated successfully!")},
     error = function(e) {pWhiff <- pWhiff}
   )
 
@@ -494,4 +554,21 @@ calThresh <- function(games, resp = "") {
     generalRates <- table(games$PitchCall) / nrow(games)
     return(unname(generalRates[which(names(generalRates) == "StrikeCalled")]))
   }
+}
+
+spec_color2 <- function(x, alpha = 1, begin = 0, end = 1,
+                        direction = 1, option = "D",
+                        na_color = "#BBBBBB", scale_from = NULL,
+                        palette = viridisLite::viridis(256, alpha, begin, end, direction, option)) {
+  n <- length(palette)
+  if (is.null(scale_from)) {
+    x <- round(scales::rescale(x, c(1, n)))
+  } else {
+    x <- round(scales::rescale(x, to = c(1, n),
+                               from = scale_from))
+  }
+
+  color_code <- palette[x]
+  color_code[is.na(color_code)] <- na_color
+  return(color_code)
 }
