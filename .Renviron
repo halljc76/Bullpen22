@@ -1,0 +1,9 @@
+AWS_ACCESS_KEY_ID = "AKIARMEABHYIDWODUAFC"
+AWS_SECRET_ACCESS_KEY = "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"
+AWS_DEFAULT_REGION = "us-east-1"
+PROFILE = "default"
+
+DB = 'defaultdb'
+HOSTDB = 'free-tier14.aws-us-east-1.cockroachlabs.cloud'
+COCKROACH_USER = 'analytics'
+COCKROACH_PASSWORD = 'otJogSdHKvzhpkXLPdwV0w'
