@@ -588,3 +588,102 @@ updateNotesTable <- function(allNotes, pitcherSel) {
                                       "Coach Wierzbicki", "Da Analytics Team")) # including analytics for testing
   return(temp)
 }
+
+SpecificTable <- function(CleanBullpenData, FallTM, PitcherName) {
+  
+  CleanBullpenData <- CleanBullpenData %>% filter(TaggedPitchType != 'Undefined')
+  
+  FallTM = FallTM %>% mutate(AdjPitcher = ifelse(Pitcher == 'Carlson, Maxwell', 'Carlson, Max', Pitcher))
+  CleanBullpenData = CleanBullpenData %>% mutate(AdjPitcher = ifelse(Pitcher == 'Carlson, Maxwell', 'Carlson, Max', Pitcher))
+  CleanBullpenData$EventType = 'Bullpen Sessions'
+  FallTM$EventType = 'Games'
+  
+  # FallTM <- FallTM %>% filter(TaggedPitchType %in% c('FB','SL', 'CH', "CU", 'CT', 'SP', 'BB'))
+  FallTM$TaggedPitchType <- ifelse(FallTM$TaggedPitchType == 'FB' | FallTM$TaggedPitchType == 'FF', 'Fastball', FallTM$TaggedPitchType)
+  FallTM$TaggedPitchType <- ifelse(FallTM$TaggedPitchType == 'SI' | FallTM$TaggedPitchType == 'FT', 'Sinker', FallTM$TaggedPitchType)
+  FallTM$TaggedPitchType <- ifelse(FallTM$TaggedPitchType == 'CH', 'ChangeUp', FallTM$TaggedPitchType)
+  FallTM$TaggedPitchType <- ifelse(FallTM$TaggedPitchType == 'SL', 'Slider', FallTM$TaggedPitchType)
+  FallTM$TaggedPitchType <- ifelse(FallTM$TaggedPitchType == 'CU' | FallTM$TaggedPitchType == 'BB', 'Curveball', FallTM$TaggedPitchType)
+  FallTM$TaggedPitchType <- ifelse(FallTM$TaggedPitchType == 'CT', 'Cutter', FallTM$TaggedPitchType)
+  FallTM$TaggedPitchType <- ifelse(FallTM$TaggedPitchType == 'SP', 'Splitter', FallTM$TaggedPitchType)
+  
+  # CleanBullpenData$TaggedPitchType <- ifelse(CleanBullpenData$TaggedPitchType == 'Sinker', 'Fastball', CleanBullpenData$TaggedPitchType)
+  
+  
+  FilteredGame <- FallTM %>% filter(AdjPitcher == PitcherName)
+  FilteredBullpen <- CleanBullpenData %>% filter(AdjPitcher == PitcherName)
+  
+  FilteredGame <- FilteredGame %>% select(colnames(FilteredBullpen)[colnames(FilteredBullpen) %in% colnames(FilteredGame)])
+  FilteredBullpen <- FilteredBullpen %>% select(colnames(FilteredBullpen)[colnames(FilteredBullpen) %in% colnames(FilteredGame)])
+  
+  FilteredGame <- FilteredGame %>% filter(TaggedPitchType %in% unique(FilteredBullpen$TaggedPitchType))
+  FilteredBullpen <- FilteredBullpen %>% filter(TaggedPitchType %in% unique(FilteredGame$TaggedPitchType))
+  
+  FilteredCombo <- rbind(FilteredGame, FilteredBullpen)
+  
+  SumTable <- FilteredCombo %>% group_by(EventType, TaggedPitchType) %>%
+    summarise(PitchCount = n(),
+              Velo = mean(na.omit(RelSpeed)),
+              Spin = mean(na.omit(SpinRate)),
+              VB = mean(na.omit(InducedVertBreak)),
+              HB = mean(na.omit(HorzBreak)),
+              RH = mean(na.omit(RelHeight)),
+              RS = mean(na.omit(RelSide)),
+              Ext = mean(na.omit(Extension)))
+  
+  ChangeTable <- SumTable %>% group_by(TaggedPitchType) %>%
+    summarise(PitchCount = PitchCount[EventType == 'Games'] - PitchCount[EventType == 'Bullpen Sessions'],
+              Velo = Velo[EventType == 'Games'] - Velo[EventType == 'Bullpen Sessions'],
+              Spin = Spin[EventType == 'Games'] - Spin[EventType == 'Bullpen Sessions'],
+              VB = VB[EventType == 'Games'] - VB[EventType == 'Bullpen Sessions'],
+              HB = HB[EventType == 'Games'] - HB[EventType == 'Bullpen Sessions'],
+              RH = RH[EventType == 'Games'] - RH[EventType == 'Bullpen Sessions'],
+              RS = RS[EventType == 'Games'] - RS[EventType == 'Bullpen Sessions'],
+              Ext = Ext[EventType == 'Games'] - Ext[EventType == 'Bullpen Sessions'],
+              EventType = 'Change') %>% 
+    select(EventType, TaggedPitchType:Ext)
+  
+  MostThrown <- FilteredCombo %>% group_by(TaggedPitchType) %>%
+    summarise(n = n()) %>%
+    arrange(desc(n))
+  
+  
+  SumTable <- rbind(SumTable, ChangeTable)
+  SumTable$EventType <- factor(SumTable$EventType, levels = c('Bullpen Sessions', 'Games', 'Change'))
+  SumTable$TaggedPitchType <- factor(SumTable$TaggedPitchType, levels = MostThrown$TaggedPitchType)
+  
+  SumTable <- SumTable %>% arrange(TaggedPitchType, EventType)
+  
+  colnames(SumTable) <- c('Event Type', 'Pitch Type', 'Pitch Count','Avg Velocity','Avg Spin Rate','Avg Vertical Break','Avg Horizontal Break',
+                          'Avg Release Height','Avg Release Side','Avg Extension')
+  
+  SumTable[,-(1:2)] <- round(SumTable[,-(1:2)],2)
+  
+  SumTable$`Pitch Count` <- ifelse(SumTable$`Event Type` == 'Change', '', SumTable$`Pitch Count`)
+  
+  index <- rep(3, length(MostThrown$TaggedPitchType))
+  
+  changeChars <- SumTable %>% mutate(across(everything(), as.character))
+  
+  for (i in 1:nrow(SumTable)){
+    
+    if(i %% 3 == 0){
+      
+      changeChars[i,-(1:3)] <- ifelse(
+        SumTable[i,-(1:3)] > 0.00,
+        cell_spec(SumTable[i,-(1:3)], color = "green", bold = T),
+        cell_spec(SumTable[i,-(1:3)], color = "red", bold = T))
+      
+    }
+    
+    
+  }
+  
+  names(index) <- MostThrown$TaggedPitchType
+  
+  return(changeChars[,-2] %>%
+    kbl(escape = F, align = 'c') %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+    pack_rows(index = index))
+  
+}

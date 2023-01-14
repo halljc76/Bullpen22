@@ -1,22 +1,35 @@
 svgUI <- function(id) {
   ns <- NS(id)
-  column(width = 12,
-  selectInput(inputId = ns("pitcherSelectSG"), label = "Player Select:",
-              choices = NULL, multiple = FALSE),
-  column(width = 7,
-         h4("Before Last Live Appearance"),
-         DT::dataTableOutput(ns("beforeLAView")),
-         uiOutput(ns("mostRecentLA")),
-         DT::dataTableOutput(ns("LAView")),
-         h4("After Last Live Appearance"),
-         DT::dataTableOutput(ns("afterLAView")),
-         style = "overflow-y:scroll;height:500px;"),
-  column(width = 5,
-         h3("Pitch Outcomes From Last Live Appearance"),
-         h4("Versus LHH"),
-         DT::dataTableOutput(ns("LALHH")),
-         h4("Versus RHH"),
-         DT::dataTableOutput(ns("LARHH")))
+  
+  tabsetPanel(
+    tabPanel(
+      title = "Summary",
+      br(),
+      selectInput(inputId = ns("pitcherSelectSG"), label = "Player Select:",
+                  choices = NULL, multiple = FALSE),
+      h3("Bullpen vs Games Overview"),
+      uiOutput(ns("svgSummary"))
+    ),
+    tabPanel(title = "Recent Stats",
+             br(),
+             column(width = 12,
+                    selectInput(inputId = ns("pitcherSelectSG2"), label = "Player Select:",
+                                choices = NULL, multiple = FALSE),
+                    column(width = 7,
+                           h4("Before Last Live Appearance"),
+                           DT::dataTableOutput(ns("beforeLAView")),
+                           uiOutput(ns("mostRecentLA")),
+                           DT::dataTableOutput(ns("LAView")),
+                           h4("After Last Live Appearance"),
+                           DT::dataTableOutput(ns("afterLAView")),
+                           style = "overflow-y:scroll;height:500px;"),
+                    column(width = 5,
+                           h3("Pitch Outcomes From Last Live Appearance"),
+                           h4("Versus LHH"),
+                           DT::dataTableOutput(ns("LALHH")),
+                           h4("Versus RHH"),
+                           DT::dataTableOutput(ns("LARHH"))))
+    )
   )
 }
 
@@ -38,12 +51,20 @@ svgServer <- function(id,data,livegame,
                             data$Pitcher),
                             pitcherList)
                           )))
+        updateSelectInput(inputId = "pitcherSelectSG2",
+                          choices = sort(unique(intersect(intersect(
+                            livegame$Pitcher,
+                            data$Pitcher),
+                            pitcherList)
+                          )))
+        
+        
       })
       
       # Determine the tables for before last appearance, the last appearance, and after
-      observeEvent(input$pitcherSelectSG, {
+      observeEvent(input$pitcherSelectSG2, {
         if (!is.null(livegame)) {
-          liveapps <- livegame %>% filter(Pitcher == input$pitcherSelectSG)
+          liveapps <- livegame %>% filter(Pitcher == input$pitcherSelectSG2)
           appearances <- unique(liveapps$Date)
           appearances <- appearances[which(nchar(appearances) > 0)]
           lastApp <- sort(appearances, decreasing = T)[length(appearances)]
@@ -54,16 +75,16 @@ svgServer <- function(id,data,livegame,
           output$mostRecentLA <- renderUI({h4(paste0("Last Live Appearance: ", unique(lastApp)[1], " Versus ", unique(lastAppDF$BatterTeam)))})
           
           if (!is.null(lastApp)) {
-            
+
             # The *session* before the last appearance
-            seshBefore <- data %>% filter(Pitcher == input$pitcherSelectSG) %>%
+            seshBefore <- data %>% filter(Pitcher == input$pitcherSelectSG2) %>%
               filter(Date < lastApp) %>% filter(Date == max(Date))
             #print(seshBefore)
-            
+
             # The *session* after the last appearance
-            seshAfter <- data %>% filter(Pitcher == input$pitcherSelectSG) %>%
+            seshAfter <- data %>% filter(Pitcher == input$pitcherSelectSG2) %>%
               filter(Date > lastApp) %>% filter(Date == min(Date))
-            
+
             # Before Last Live App
             if (nrow(seshBefore) > 0) {
               output$beforeLAView <- renderDataTable({DT::datatable(summaryStats(seshBefore, flag = F),
@@ -72,7 +93,7 @@ svgServer <- function(id,data,livegame,
               output$beforeLAView <- renderDataTable({DT::datatable(data.frame("No Data Before Last Live Appearance"),
                                                                     options = list(dom = 't'),rownames = F)})
             }
-            
+
             # Further-broken-down the last live appearance
             if (nrow(lastAppDF) > 0) {
               output$LAView <- renderDataTable({DT::datatable(summaryStats(lastAppDF, flag = F),
@@ -80,7 +101,7 @@ svgServer <- function(id,data,livegame,
               output$LALHH <- renderDataTable({DT::datatable(pitchOutcomes(lastAppDF, T),options = list(dom = 't'),rownames = F)})
               output$LARHH <- renderDataTable({DT::datatable(pitchOutcomes(lastAppDF, F),options = list(dom = 't'),rownames = F)})
             }
-            
+
             # After Last Live App
             if (nrow(seshAfter) > 0) {
               output$afterLAView <- renderDataTable({DT::datatable(summaryStats(seshAfter, flag = F),
@@ -90,6 +111,12 @@ svgServer <- function(id,data,livegame,
                                                                    options = list(dom = 't'),rownames = F)})
             }
           }
+         }
+      })
+      
+      observeEvent(input$pitcherSelectSG, {
+        if (gotData) {
+          output$svgSummary <- renderUI({HTML(SpecificTable(data,livegame,input$pitcherSelectSG))})
         }
       })
       

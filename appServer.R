@@ -22,8 +22,8 @@ server <- function(input, output, session) {
   observe({
     if (!values$gotData) {
       values$data <- getData()
-      values$data$Date <- strftime(as.Date(values$data$Date, format = "%m/%d/%Y"),
-                                   format = "%Y-%m-%d")
+      # values$data$Date <- strftime(as.Date(values$data$Date, format = "%m/%d/%Y"),
+      #                              format = "%Y-%m-%d")
       values$livegame <- getOurGames()
       
       values$gotData <- T
