@@ -1,23 +1,23 @@
 notesUI <- function(id) {
   ns <- NS(id)
   tabsetPanel(
-    tabPanel("Add Note",
+    tabPanel(h5("Add Note"),
              br(),
              sidebarLayout(
                sidebarPanel = sidebarPanel(
                  width = 4,
                  h2("Add Note"),
                  textInput(inputId = ns("noteTitle"),
-                           label = "Title",
+                           label = h4("Title"),
                            width = "100%",
                            placeholder = "Main Point or Message"),
                  textAreaInput(inputId = ns("noteMessage"),
-                               label = "Note",
+                               label = h4("Note"),
                                width = "100%",
-                               placeholder = "Say something! (Avoid using quotes around words if possible, for now. The app currently cannot handle that type of input.)"),
+                               placeholder = "Say something here. (Avoid using 'quotes' around words if possible, for now. The app currently cannot handle that type of input.)"),
                  actionButton(inputId = ns("noteAdd"), label = "Add Note", class = "btn-primary"),
                  br(),
-                 h5(HTML("<b>Include Pitches</b>")),
+                 h4(HTML("<b>Include Pitches</b>")),
                  h5("Any included pitches below will be included. Deselect pitches to the right
                                to un-include them. Click the 'Clear' Button to clear the table below."),
                  actionButton(inputId = ns("refClear"), label = "Clear Ref. Table", class = "btn-primary"),
@@ -33,12 +33,12 @@ notesUI <- function(id) {
                           selectInput(inputId = ns("datesSelectDV"), label = "Select Sessions:",
                                       choices = NULL, multiple = TRUE)),
                    DT::dataTableOutput(ns("sessionDataView")))))),
-    tabPanel("View Notes",
-             h3("Team Notes"),
+    tabPanel(h5("View Notes"),
+             h2("Team Notes"),
              selectInput(inputId = ns("pitcherSelectNV"), label = "Player Select:",
                          choices = NULL, multiple = FALSE),
              column(width = 6,
-                    h4("Select Note:"),
+                    h3("Select Note:"),
                     fluidRow(
                       dataTableOutput(ns("notesTable")),
                       style = "overflow-y:scroll;
@@ -116,7 +116,7 @@ notesServer <- function(id,allNotes,
       
       # Temporarily add a reference to the sidebar when row selected
       observeEvent(input$sessionDataView_rows_selected, {
-        temp <- c(values$sessionDV[input$sessionDataView_rows_selected,]$PitchUID)
+        temp <- c(values$sessionDV[input$sessionDataView_rows_selected,]$PlayID)
         if (!(is.null(values$refData))) {
           if (nrow(values$refData) > 0) {
             currID <- unique( data %>% filter(Pitcher == input$pitcherSelectDV) %>%
@@ -135,18 +135,18 @@ notesServer <- function(id,allNotes,
            uids <- temp
         }
         values$refData <- unique(rbind(values$refData,
-                                       shortenRef( data %>% filter(PitchUID %in%  uids))))
-        values$refData <-  values$refData %>% filter( values$refData[,5] %in%  uids)
+                                       shortenRef( data %>% filter(PlayID %in% uids))))
+        values$refData <-  values$refData %>% filter( values$refData[,5] %in% uids)
         output$refSelectTable <- renderTable( values$refData[,1:4])
-         values$stageNewRef <- T
-         values$keepRefs <- T
+        values$stageNewRef <- T
+        values$keepRefs <- T
       })
       
       # Keep track of UIDs from references that are staged to be added into DB
       observe({
         if (values$stageNewRef) {
-          pitchUID <-  values$refData[,5]
-          values$refdUIDs <- append(values$refdUIDs, pitchUID)
+          playID <-  values$refData[,5]
+          values$refdUIDs <- append(values$refdUIDs, playID)
           values$stageNewRef <- F
         } else if ((length(input$sessionDataView_rows_selected) == 0 && !values$keepRefs)) {
           output$refSelectTable <- renderTable(data.frame())
@@ -170,8 +170,8 @@ notesServer <- function(id,allNotes,
           showModal(
             modalDialog(
               title = "Bullpen @ Boshamer", footer = NULL, easyClose = T,
-              h4("Add a note for the 2022 ACC Champions! (Password is 'gdtbath', no quotes.)"),
-              selectInput(inputId = ns("loginEnter"), label = "Enter Login Info",
+              h4("Enter Info (Password is 'gdtbath', no quotes.)"),
+              selectInput(inputId = ns("loginEnter"), label = "Select Your Name",
                           choices = as.vector(getUsers(con))),
               textInput(inputId = ns("passEnter"), label = "Enter Password", value = ""),
               actionButton(inputId = ns("login"), label = "Login", class = "btn-primary")
@@ -224,7 +224,7 @@ notesServer <- function(id,allNotes,
         
         vizData <- data.frame()
         for (uid in refdPitches) {
-           vizData <- rbind( vizData,  data[ data$PitchUID == uid,])
+           vizData <- rbind( vizData,  data[ data$PlayID == uid,])
         }
         temp2 <- data.frame()
         if (nrow(vizData) > 0) {

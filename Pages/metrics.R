@@ -11,7 +11,8 @@ metricsUI <- function(id) {
                                   choices = NULL))),
     fluidRow(column(12,plotOutput(ns("metricPlot1")))),
     br(),
-    fluidRow(column(12,plotOutput(ns("metricPlot2"))))
+    fluidRow(column(12,plotOutput(ns("metricPlot2")))),
+    style="overflow-y:scroll;height=650px;"
   )
 }
 

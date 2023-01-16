@@ -24,9 +24,10 @@ server <- function(input, output, session) {
       values$data <- getData()
       # values$data$Date <- strftime(as.Date(values$data$Date, format = "%m/%d/%Y"),
       #                              format = "%Y-%m-%d")
+      values$gotData <- T
+      print(values$data)
       values$livegame <- getOurGames()
       
-      values$gotData <- T
       values$allNotes <- getNotes(con)
       
       # values$whiffThresh <- calThresh(values$livegame, "Whiff")

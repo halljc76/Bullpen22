@@ -1,5 +1,5 @@
 ui <- dashboardPage(
-  dashboardHeader(title = "Bullpen @ Boshamer V2"),
+  dashboardHeader(title = "Bullpen App"),
   dashboardSidebar(
     sidebarMenu(
       menuItem(tabName = "Home", text = "Homepage", icon = icon("house")),

@@ -3,17 +3,15 @@ svgUI <- function(id) {
   
   tabsetPanel(
     tabPanel(
-      title = "Summary",
-      br(),
-      selectInput(inputId = ns("pitcherSelectSG"), label = "Player Select:",
+      title = h5("Summary"),
+      selectInput(inputId = ns("pitcherSelectSG"), label = h4("Player Select:"),
                   choices = NULL, multiple = FALSE),
       h3("Bullpen vs Games Overview"),
       uiOutput(ns("svgSummary"))
     ),
-    tabPanel(title = "Recent Stats",
-             br(),
+    tabPanel(title = h5("Recent Stats"),
              column(width = 12,
-                    selectInput(inputId = ns("pitcherSelectSG2"), label = "Player Select:",
+                    selectInput(inputId = ns("pitcherSelectSG2"), label = h4("Player Select:"),
                                 choices = NULL, multiple = FALSE),
                     column(width = 7,
                            h4("Before Last Live Appearance"),
@@ -28,7 +26,8 @@ svgUI <- function(id) {
                            h4("Versus LHH"),
                            DT::dataTableOutput(ns("LALHH")),
                            h4("Versus RHH"),
-                           DT::dataTableOutput(ns("LARHH"))))
+                           DT::dataTableOutput(ns("LARHH"))),
+                           style = "overflow-y:scroll;height:500px;")
     )
   )
 }
