@@ -724,7 +724,7 @@ SpecificTable <- function(CleanBullpenData, FallTM, PitcherName, forHomepage = F
 #' @title Apply Pitcher Arsenals
 #' @description Ensure that pitchers' in-app records are consistent with what coaches
 #'              and players discuss and throw.
-applyArsenals <- function(games) {
+applyArsenals <- function(games,bullpens) {
   #BOVAIR
   games$TaggedPitchType <- ifelse(games$Pitcher == 'Bovair, Connor' & games$TaggedPitchType == 'SI', 
                                   'FF', 
@@ -743,9 +743,9 @@ applyArsenals <- function(games) {
                                   'CT', 
                                   games$TaggedPitchType)
   
-  games$TaggedPitchType <- ifelse(games$Pitcher == 'Carlson, Max' & games$TaggedPitchType == 'Cutter', 
-                                     'Cutter', 
-                                  games$TaggedPitchType)
+  # bullpens$TaggedPitchType <- ifelse(bullpens$Pitcher == 'Carlson, Max' & bullpens$TaggedPitchType == 'Cutter', 
+  #                                    'Cutter', 
+  #                                    bullpens$TaggedPitchType)
   
   #ARGENTO
   games$TaggedPitchType <- ifelse(games$Pitcher == 'Argento, Nick' & games$TaggedPitchType == 'SL', 
@@ -757,9 +757,9 @@ applyArsenals <- function(games) {
                                   'CT', 
                                   games$TaggedPitchType)
   
-  games$Pitcher <- ifelse(games$Pitcher == "Matthjis, Matthew", 
+  bullpens$Pitcher <- ifelse(bullpens$Pitcher == "Matthjis, Matthew", 
                              'Matthijs, Matthew',
-                          games$Pitcher) #his name is not always spelled right
+                             bullpens$Pitcher) #his name is not always spelled right
   
   #PADGETT
   games$TaggedPitchType <- ifelse(games$Pitcher == 'Padgett, Cameron' & games$TaggedPitchType == 'CU', 
@@ -779,5 +779,5 @@ applyArsenals <- function(games) {
   games$TaggedPitchType <- ifelse(games$Pitcher == 'Poston, Matt' & games$TaggedPitchType == 'CH', 
                                   'SP', 
                                   games$TaggedPitchType)
-  return(games)
+  return(list(games,bullpens))
 }

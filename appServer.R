@@ -29,14 +29,16 @@ server <- function(input, output, session) {
       
       forRecruiting <- "Carlson, Max"
       values$data <- values$data[order(values$data$Pitcher == "Carlson, Max",decreasing = T),]
-      values$data <- applyArsenals(values$data)
       
       # values$data$Date <- strftime(as.Date(values$data$Date, format = "%m/%d/%Y"),
       #                              format = "%Y-%m-%d")
       values$gotData <- T
-      values$livegame <- getOurGames() %>% applyArsenals()
+      values$livegame <- getOurGames() 
       values$livegame$Pitcher <- ifelse(values$livegame$Pitcher == "Pry, Nick",
                                         "Pry, Nik",values$livegame$Pitcher)
+      
+      values$livegame <- applyArsenals(values$livegame, values$data)[[1]]
+      values$data <- applyArsenals(values$livegame, values$data)[[2]]
       
       values$allNotes <- getNotes(con)
       
