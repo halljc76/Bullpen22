@@ -45,17 +45,17 @@ svgServer <- function(id,data,livegame,
         options2 <- unique(livegame$Pitcher)
         
         updateSelectInput(inputId = "pitcherSelectSG",
-                          choices = sort(unique(intersect(intersect(
+                          choices = unique(intersect(intersect(
                             livegame$Pitcher,
                             data$Pitcher),
                             pitcherList)
-                          )))
+                          ))
         updateSelectInput(inputId = "pitcherSelectSG2",
-                          choices = sort(unique(intersect(intersect(
+                          choices = unique(intersect(intersect(
                             livegame$Pitcher,
                             data$Pitcher),
                             pitcherList)
-                          )))
+                          ))
         
         
       })

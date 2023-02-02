@@ -19,6 +19,7 @@ library(kableExtra)
 library(paletteer)
 library(Jmisc)
 library(scales)
+library(stringr)
 
 source("helpers.R")
 source("./dbFuncs.R")

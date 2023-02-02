@@ -75,9 +75,9 @@ notesServer <- function(id,allNotes,
         options1 <- unique(data$Pitcher)
         
         updateSelectInput(inputId = "pitcherSelectDV",
-                          choices = sort(intersect(options1, pitcherList)))
+                          choices = intersect(options1, pitcherList))
         updateSelectInput(inputId = "pitcherSelectNV",
-                          choices = sort(intersect(options1, pitcherList)))
+                          choices = intersect(options1, pitcherList))
       })
       
       
@@ -121,7 +121,7 @@ notesServer <- function(id,allNotes,
           if (nrow(values$refData) > 0) {
             currID <- unique( data %>% filter(Pitcher == input$pitcherSelectDV) %>%
                                select(PitcherId))
-            print(nrow(currID))
+            # print(nrow(currID))
             
             if (nrow(currID) > 1) {
               temp2 <-  values$refData %>% filter(!(PitcherId %in% as.vector(currID)))

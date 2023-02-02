@@ -74,7 +74,7 @@ homepageServer <- function(id,data,pitcherList,
         options1 <- unique(data$Pitcher)
         
         updateSelectInput(inputId = "pitcherSelectHP",
-                          choices = sort(intersect(options1, pitcherList)))
+                          choices = intersect(options1, pitcherList))
       })
     }
   )

@@ -11,9 +11,9 @@ getData <- function() {
   # For each file...
   for (key in keys) {
     # Ensure it's a csv
-    if (gregexpr(".csv", key)[[1]][1] != -1) {
+    if (gregexpr(".fst", key)[[1]][1] != -1) {
       # Read it in
-      temp <- s3read_using(FUN = read.csv, bucket = "uncbullpen", object = key)
+      temp <- s3read_using(FUN = read.fst, bucket = "uncbullpen", object = key)
       colnames(temp)[1] <- "PitchNo" # Fix a little read-in error
       ret <- rbind(ret, temp) # Bind everything
     }
@@ -179,15 +179,15 @@ timeGraphs <- function(df, pitcher, dates, response) {
   df$GameOrBullpen <- ifelse(df$Scenario == 0, "Live Game", "Bullpen")
   df <- na.omit(df)
 
-  ptWithDate <- c()
-  for (i in 1:nrow(df)) {
-   ptWithDate <- append(ptWithDate,
-                       paste(df$TaggedPitchType[i], substr(df$Date[i], 6, 10)))
-  }
-  df$ptWithDate <- ptWithDate
-  df <- df %>% filter(Date %in% dates)
-  df <- df[order(df$Date),]
-
+  # ptWithDate <- c()
+  # for (i in 1:nrow(df)) {
+  #  ptWithDate <- append(ptWithDate,
+  #                      paste(df$TaggedPitchType[i], substr(df$Date[i], 6, 10)))
+  # }
+  # df$ptWithDate <- ptWithDate
+  df <- df %>% filter(Date %in% dates) %>% arrange(Date)
+  # print(df)
+  
   cuts <- c()
   runningTotal = 0
   for (j in table(df$Date)) {
@@ -217,9 +217,9 @@ timeGraphs <- function(df, pitcher, dates, response) {
     suffix <- "ft."
   }
 
-  if (response == "Extension") {
-    print(df)
-  }
+  # if (response == "Extension") {
+  #   print(df)
+  # }
   fig <- ggplot(data = df) + geom_point(mapping = aes(x = Row,
                                               y = df[,response],
                                               color = TaggedPitchType)) +
@@ -227,7 +227,8 @@ timeGraphs <- function(df, pitcher, dates, response) {
                                              color = TaggedPitchType)) +
    geom_tile(aes(x = Row, y = median(df[,response]), height = Inf,
                  fill=as.factor(GameOrBullpen)),
-             col = "NA", alpha = 0.2) + geom_vline(xintercept = cuts) +
+             col = "NA", alpha = 0.15) + geom_vline(xintercept = cuts, linetype = "dotted",
+                                                   col = "black") +
     labs(y = response, x = "Pitch Index", color = "Pitch Type", fill = "Game/Bullpen?")  + 
     theme(legend.text=element_text(size=14))
   fig
@@ -365,29 +366,47 @@ useModels <- function(test, pitcherSide, batterSide, whiffOrCS) {
 #'              filters other pitches out, then categorizes the TaggedPitchType
 #'              so that the modeling process goes even smoother.
 prep <- function(data) {
-  sz <- data.frame(xmin = -1.2,
-                   xmax = 1.2,
-                   ymin = 1.525,
-                   ymax = 3.316)
-
-  data <- data %>% filter(PlateLocSide > sz$xmin - 0.25) %>%
-    filter(PlateLocSide < sz$xmax + 0.25) %>%
-    filter(PlateLocHeight > sz$ymin - 0.25) %>%
-    filter(PlateLocHeight < sz$ymax + 0.25)
-
-  data <- data %>% filter(!(TaggedPitchType %in% c("Undefined", "", NA)))
-
-  data$updPT <- ifelse(data$TaggedPitchType == "Fastball", "FB",
-                       ifelse(data$TaggedPitchType == "ChangeUp", "CH",
-                              ifelse(data$TaggedPitchType == "Curveball", "BR",
-                                     ifelse(data$TaggedPitchType == "Slider", "BR",
-                                            ifelse(data$TaggedPitchType == "Splitter", "CH",
-                                                   ifelse(data$TaggedPitchType == "Cutter", "BR",
-                                                          ifelse(data$TaggedPitchType == "Sinker", "BR",
-                                                                 data$TaggedPitchType)))))))
-
+  
+  data <- data %>% filter(!(TaggedPitchType %in% c("Undefined", "", NA))) 
+  
+  data$TaggedPitchType <- ifelse(data$TaggedPitchType %in% c('FB', 'FF'), 'Fastball', 
+                                 ifelse(data$TaggedPitchType %in% c('SI', 'FT'), 'Sinker', 
+                                        ifelse(data$TaggedPitchType == 'CH', 'ChangeUp', 
+                                               ifelse(data$TaggedPitchType == 'SL', 'Slider',
+                                                      ifelse(data$TaggedPitchType == 'CU', 'Curveball', 
+                                                             ifelse(data$TaggedPitchType == 'CT', 'Cutter',
+                                                                    ifelse(data$TaggedPitchType == 'SP', 'Splitter', data$TaggedPitchType)))))))
+  
+  
+  
   return(data)
 }
+
+### THIS IS DEPRECATED
+# prep <- function(data) {
+#   sz <- data.frame(xmin = -1.2,
+#                    xmax = 1.2,
+#                    ymin = 1.525,
+#                    ymax = 3.316)
+# 
+#   data <- data %>% filter(PlateLocSide > sz$xmin - 0.25) %>%
+#     filter(PlateLocSide < sz$xmax + 0.25) %>%
+#     filter(PlateLocHeight > sz$ymin - 0.25) %>%
+#     filter(PlateLocHeight < sz$ymax + 0.25)
+# 
+#   data <- data %>% filter(!(TaggedPitchType %in% c("Undefined", "", NA)))
+# 
+#   data$updPT <- ifelse(data$TaggedPitchType == "Fastball", "FB",
+#                        ifelse(data$TaggedPitchType == "ChangeUp", "CH",
+#                               ifelse(data$TaggedPitchType == "Curveball", "BR",
+#                                      ifelse(data$TaggedPitchType == "Slider", "BR",
+#                                             ifelse(data$TaggedPitchType == "Splitter", "CH",
+#                                                    ifelse(data$TaggedPitchType == "Cutter", "BR",
+#                                                           ifelse(data$TaggedPitchType == "Sinker", "BR",
+#                                                                  data$TaggedPitchType)))))))
+# 
+#   return(data)
+# }
 
 #' @title Run an NBC Model on Data
 #' @description Predict using an NBC data either the outcome 'class' or probability 'raw.'
@@ -623,6 +642,8 @@ SpecificTable <- function(CleanBullpenData, FallTM, PitcherName, forHomepage = F
   FilteredGame <- FallTM %>% filter(AdjPitcher == PitcherName)
   FilteredBullpen <- CleanBullpenData %>% filter(AdjPitcher == PitcherName)
   
+  # print(unique(FilteredBullpen$TaggedPitchType))
+  
   FilteredGame <- FilteredGame %>% select(colnames(FilteredBullpen)[colnames(FilteredBullpen) %in% colnames(FilteredGame)])
   FilteredBullpen <- FilteredBullpen %>% select(colnames(FilteredBullpen)[colnames(FilteredBullpen) %in% colnames(FilteredGame)])
   
@@ -698,4 +719,65 @@ SpecificTable <- function(CleanBullpenData, FallTM, PitcherName, forHomepage = F
     kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
     pack_rows(index = index))
   
+}
+
+#' @title Apply Pitcher Arsenals
+#' @description Ensure that pitchers' in-app records are consistent with what coaches
+#'              and players discuss and throw.
+applyArsenals <- function(games) {
+  #BOVAIR
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Bovair, Connor' & games$TaggedPitchType == 'SI', 
+                                  'FF', 
+                                  games$TaggedPitchType)
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Bovair, Connor' & games$TaggedPitchType == 'CT', 
+                                  'SL', 
+                                  games$TaggedPitchType)
+  
+  #STARNES
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Starnes, Carson' & games$TaggedPitchType == 'FT', 
+                                  'FB', 
+                                  games$TaggedPitchType)
+  
+  #CARLSON
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Carlson, Max' & games$TaggedPitchType == 'SL', 
+                                  'CT', 
+                                  games$TaggedPitchType)
+  
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Carlson, Max' & games$TaggedPitchType == 'Cutter', 
+                                     'Cutter', 
+                                  games$TaggedPitchType)
+  
+  #ARGENTO
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Argento, Nick' & games$TaggedPitchType == 'SL', 
+                                  'CT', 
+                                  games$TaggedPitchType)
+  
+  #MATTHIJS
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Matthijs, Matthew' & games$TaggedPitchType == 'SL', 
+                                  'CT', 
+                                  games$TaggedPitchType)
+  
+  games$Pitcher <- ifelse(games$Pitcher == "Matthjis, Matthew", 
+                             'Matthijs, Matthew',
+                          games$Pitcher) #his name is not always spelled right
+  
+  #PADGETT
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Padgett, Cameron' & games$TaggedPitchType == 'CU', 
+                                  'SL', 
+                                  games$TaggedPitchType)
+  
+  #BERKWICH
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Berkwich, Nelson' & games$TaggedPitchType == 'CT', 
+                                  'SL', 
+                                  games$TaggedPitchType)
+  
+  #POSTON
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Poston, Matt' & games$TaggedPitchType == 'SL', 
+                                  'CT', 
+                                  games$TaggedPitchType)
+  
+  games$TaggedPitchType <- ifelse(games$Pitcher == 'Poston, Matt' & games$TaggedPitchType == 'CH', 
+                                  'SP', 
+                                  games$TaggedPitchType)
+  return(games)
 }
