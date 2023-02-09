@@ -24,7 +24,7 @@ notesUI <- function(id) {
                  tableOutput(outputId = ns("refSelectTable"))
                ),
                mainPanel = mainPanel(
-                 h4("Include Pitches in Note! (Click Once to Select -- Click Headings to Sort By Category)"),
+                 h4("Include Pitches in Note: (Click Once to Select -- Click Headings to Sort By Category)"),
                  fluidRow(
                    column(width = 4,
                           selectInput(inputId = ns("pitcherSelectDV"), label = "Player Select:",
@@ -32,7 +32,7 @@ notesUI <- function(id) {
                    column(width = 4,
                           selectInput(inputId = ns("datesSelectDV"), label = "Select Sessions:",
                                       choices = NULL, multiple = TRUE)),
-                   DT::dataTableOutput(ns("sessionDataView")))))),
+                   DT::dataTableOutput(ns("sessionDataView"),width = "95%"))))),
     tabPanel(h5("View Notes"),
              h2("Team Notes"),
              selectInput(inputId = ns("pitcherSelectNV"), label = "Player Select:",
@@ -110,8 +110,18 @@ notesServer <- function(id,allNotes,
           output$sessionDataView <- renderDataTable({values$sessionDV %>%
               select(PitchNo, TaggedPitchType,RelSpeed,SpinRate,Tilt,
                      InducedVertBreak,HorzBreak,
-                     RelHeight, RelSide, Extension)}, rownames = FALSE,
-              options = list(scrollX = T))
+                     RelHeight, RelSide, Extension, videoSide, videoBack) %>% 
+              mutate(
+                RelSpeed = round(RelSpeed, 1),
+                SpinRate = round(SpinRate, 0),
+                InducedVertBreak = round(InducedVertBreak, 1),
+                HorzBreak = round(HorzBreak, 1),
+                RelHeight = round(RelHeight, 1),
+                RelSide = round(RelSide, 1),
+                Extension = round(Extension, 1)
+              ) %>% rename("IVB" = "InducedVertBreak", 
+                                "PitchType" = "TaggedPitchType")}, rownames = FALSE,
+              options = list(scrollX = T),escape = F)
         })
       
       # Temporarily add a reference to the sidebar when row selected

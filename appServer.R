@@ -17,7 +17,8 @@ server <- function(input, output, session) {
                                             "RelSide", "Extension",
                                             "HorzBreak", "InducedVertBreak",
                                             "PlateLocHeight", "PlateLocSide"),
-                           pitcherList = readLines("./2023PitcherList.txt"))
+                           pitcherList = readLines("./2023PitcherList.txt"),
+                           vids = NULL, vidsMatch = NULL)
   
   observe({
     if (!values$gotData) {
@@ -41,6 +42,44 @@ server <- function(input, output, session) {
       values$data <- applyArsenals(values$livegame, values$data)[[2]]
       
       values$allNotes <- getNotes(con)
+      
+      vidsSide <- getVids(back = F)
+      vidsBack <- getVids()
+      
+      values$vids <- data.frame()
+      sideLinks <- c()
+      backLinks <- c()
+      
+      for (i in 2:length(vidsSide)) {
+        tstring <- paste0("https://uncbullpen.s3.us-east-1.amazonaws.com/",
+                          vidsSide[i])
+        sideLinks <- append(sideLinks,
+                            paste0("<a href='",URLdecode(tstring),"' target='_blank'>","Link","</a>"))
+        vidsSide[i] <- HTML(substr(vidsSide[i], 16, nchar(vidsSide[i])))
+      }
+      for (i in 2:length(vidsBack)) {
+        tstring <- paste0("https://uncbullpen.s3.us-east-1.amazonaws.com/",
+                          vidsBack[i])
+        backLinks <- append(backLinks,
+                            paste0("<a href='",URLdecode(tstring),"' target='_blank'>","Link","</a>"))
+        vidsBack[i] <- HTML(substr(vidsBack[i], 16, nchar(vidsBack[i])))
+      }
+      
+      sideLinks <- data.frame(sideLinks, vidsSide[2:length(vidsSide)])
+      backLinks <- data.frame(backLinks, vidsBack[2:length(vidsBack)])
+      colnames(sideLinks) <- c("videoSide", "VideoName")
+      colnames(backLinks) <- c("videoBack", "VideoName")
+      
+      sideMatch <- left_join(sideLinks, getMatches(), by = c("VideoName"))
+      backMatch <- left_join(backLinks, getMatches(), by = c("VideoName"))
+      
+      values$vids <- merge(sideMatch, backMatch, by = c("PlayID")) %>% select(-c("VideoName.x",
+                                                                       "VideoName.y"))
+      
+      values$data <- left_join(
+          values$data, values$vids, by = c("PlayID")
+      )
+      # print(values$data %>% select(PlayID, VideoName, videoSide, videoBack))
       
       # values$whiffThresh <- calThresh(values$livegame, "Whiff")
       # values$csThresh <- calThresh(prep(values$livegame))

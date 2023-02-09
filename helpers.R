@@ -90,6 +90,17 @@ summaryStats <- function(data, pitcher = NA, dates = NA, flag = T) {
   return(ret) # Return df
 }
 
+#' @title Check if All Arguments Non-Null
+#' @params args : List of variables
+noneNull <- function(args) {
+  for (p in args) {
+    if (is.null(p)) {
+      return(F)
+    }
+  }
+  return(T)
+}
+
 #' @title Determine the i-th Observation of Each Factor in DF
 #' @description This function does not appear to be used in the app. It was at
 #'              one point... so might be best to leave it.
