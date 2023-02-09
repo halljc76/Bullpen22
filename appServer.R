@@ -73,12 +73,23 @@ server <- function(input, output, session) {
       sideMatch <- left_join(sideLinks, getMatches(), by = c("VideoName"))
       backMatch <- left_join(backLinks, getMatches(), by = c("VideoName"))
       
-      values$vids <- merge(sideMatch, backMatch, by = c("PlayID")) %>% select(-c("VideoName.x",
-                                                                       "VideoName.y"))
+      temp2a <<- left_join(getMatches(), values$data %>% select(Pitcher, PlayID), 
+                      by = c("PlayID")) %>% left_join(
+                        y = sideMatch, by = c("VideoName", "PlayID")
+                      ) %>% filter(!is.na(videoSide))
       
+      temp2b <<- left_join(getMatches(), values$data %>% select(Pitcher, PlayID), 
+                           by = c("PlayID")) %>% left_join(
+                             y = backMatch, by = c("VideoName", "PlayID")
+                           ) %>% filter(!is.na(videoBack))
+      
+      values$vids <- full_join(temp2a, temp2b, by = c("PlayID")) %>% select(PlayID, videoSide, videoBack)
+    
       values$data <- left_join(
           values$data, values$vids, by = c("PlayID")
       )
+      
+      
       # print(values$data %>% select(PlayID, VideoName, videoSide, videoBack))
       
       # values$whiffThresh <- calThresh(values$livegame, "Whiff")
