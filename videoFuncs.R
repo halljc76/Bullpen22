@@ -4,10 +4,10 @@
 getVids <- function(back = T) {
   if (back) {
     # Get all the unique filenames in the bucket
-    return(as.vector(unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "video/backview/"))$Key)))
+    return(as.vector(unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "video/backview/",max = Inf))$Key)))
   } else {
     # Get all the unique filenames in the bucket
-    return(as.vector(unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "video/sideview/"))$Key)))
+    return(as.vector(unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "video/sideview/",max = Inf))$Key)))
   }
 }
 
@@ -19,7 +19,6 @@ getMatches <- function() {
   
   # For each file...
   for (key in keys) {
-    # Ensure it's a csv
     if (gregexpr(".fst", key)[[1]][1] != -1) {
       # Read it in
       temp <- s3read_using(FUN = read.fst, bucket = "uncbullpen", object = key)

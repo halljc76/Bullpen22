@@ -104,9 +104,12 @@ notesServer <- function(id,allNotes,
       # Update data according to pitcher/date selection
       observeEvent({input$pitcherSelectDV
         input$datesSelectDV}, {
+        
+          
           values$sessionDV <- data %>%
             filter(Pitcher == input$pitcherSelectDV) %>%
             filter(Date %in% input$datesSelectDV)
+          
           output$sessionDataView <- renderDataTable({values$sessionDV %>%
               select(PitchNo, TaggedPitchType,RelSpeed,SpinRate,Tilt,
                      InducedVertBreak,HorzBreak,

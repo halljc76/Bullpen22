@@ -754,10 +754,8 @@ applyArsenals <- function(games,bullpens) {
                                   'CT', 
                                   games$TaggedPitchType)
   
-  # bullpens$TaggedPitchType <- ifelse(bullpens$Pitcher == 'Carlson, Max' & bullpens$TaggedPitchType == 'Cutter', 
-  #                                    'Cutter', 
-  #                                    bullpens$TaggedPitchType)
-  
+  bullpens$TaggedPitchType <- ifelse(bullpens$Pitcher == 'Carlson, Max' & bullpens$TaggedPitchType == 'Slider', 
+                                     'Cutter', bullpens$TaggedPitchType)
   #ARGENTO
   games$TaggedPitchType <- ifelse(games$Pitcher == 'Argento, Nick' & games$TaggedPitchType == 'SL', 
                                   'CT', 
