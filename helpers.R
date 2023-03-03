@@ -131,6 +131,7 @@ averageTilt <- function(df) {
       m <- c()
       for (i in 1:nrow(df2)) {
         tilt <- gsub(".* ", "", df2$Tilt[i])
+        tilt <- substr(tilt,1,5)
         if (!is.na(tilt) && !is.null(tilt)) {
           hr <- strtoi(substr(tilt, 1, gregexpr(":", tilt)[[1]][1] - 1))
           min <- strtoi(substr(tilt, gregexpr(":", tilt)[[1]][1] + 1, nchar(tilt)))

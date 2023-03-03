@@ -90,6 +90,21 @@ server <- function(input, output, session) {
           values$data, values$vids, by = c("PlayID")
       )
       
+      
+      for (i in 1:nrow(values$data)) {
+        if (!is.na(values$data$Tilt[i]) & gregexpr(":",values$data$Tilt[i])[[1]][1] == -1) {
+          time <- as.numeric(values$data$Tilt[i])
+          if (!is.na(time)) {
+            timeF <- paste0(
+              toString(floor(time / 3600)), ":",
+              c("00","15","30","45")[which.min(sapply(c(0,15,30,45),
+                                                      function(x) {((time - (3600 * floor(time/3600))) / 3600) * 60 - x}
+              ))])
+            values$data$Tilt[i] <- substr(timeF,1,4)
+          }
+        }
+      }
+      
       # print(values$data %>% select(PlayID, VideoName, videoSide, videoBack))
       
       # values$whiffThresh <- calThresh(values$livegame, "Whiff")

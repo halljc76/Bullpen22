@@ -66,10 +66,10 @@ svgServer <- function(id,data,livegame,
           liveapps <- livegame %>% filter(Pitcher == input$pitcherSelectSG2)
           appearances <- unique(liveapps$Date)
           appearances <- appearances[which(nchar(appearances) > 0)]
-          lastApp <- sort(appearances, decreasing = T)[length(appearances)]
+          print( sort(appearances, decreasing = T) )
+          lastApp <- sort(appearances, decreasing = T)[1]
           #print(lastApp)
           lastAppDF <- liveapps %>% filter(Date == lastApp)
-          
           
           output$mostRecentLA <- renderUI({h4(paste0("Last Live Appearance: ", unique(lastApp)[1], " Versus ", unique(lastAppDF$BatterTeam)))})
           
