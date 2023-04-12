@@ -188,7 +188,16 @@ timeGraphs <- function(df, pitcher, dates, response) {
                                     ifelse(df$TaggedPitchType == "SL", "Slider",
                                            df$TaggedPitchType)))
 
-  df$GameOrBullpen <- ifelse(df$Scenario == 0, "Live Game", "Bullpen")
+  if (sum(df$Scenario) > 0){
+    
+    my_colors = c("red", "skyblue")
+    
+  } else {
+    
+    my_colors = c("skyblue", "red")
+    
+  }
+  
   df <- na.omit(df)
 
   # ptWithDate <- c()
@@ -214,6 +223,7 @@ timeGraphs <- function(df, pitcher, dates, response) {
       )
   }
 
+  df$GameOrBullpen <- ifelse(df$Scenario == 0, "Live Game", "Bullpen")
   df$Row <- as.integer(row.names(df))
 
   if (response %in% c("RelSpeed")) {
@@ -232,17 +242,19 @@ timeGraphs <- function(df, pitcher, dates, response) {
   # if (response == "Extension") {
   #   print(df)
   # }
+  
   fig <- ggplot(data = df) + geom_point(mapping = aes(x = Row,
                                               y = df[,response],
                                               color = TaggedPitchType)) +
                      geom_line(mapping = aes(x = Row, y = df[,response],
                                              color = TaggedPitchType)) +
    geom_tile(aes(x = Row, y = median(df[,response]), height = Inf,
-                 fill=as.factor(GameOrBullpen)),
+                 fill=factor(GameOrBullpen)),
              col = "NA", alpha = 0.15) + geom_vline(xintercept = cuts, linetype = "dotted",
                                                    col = "black") +
-    labs(y = response, x = "Pitch Index", color = "Pitch Type", fill = "Game/Bullpen?")  + 
-    theme(legend.text=element_text(size=14))
+    labs(y = response, x = "Pitch Index", color = "Pitch Type", fill = "Game/Bullpen?")  +  
+    scale_fill_manual(values=my_colors) +
+    theme(legend.text=element_text(size=14)) 
   fig
 
   # plot_ly(data = df %>% group_by(df$ptWithDate),
