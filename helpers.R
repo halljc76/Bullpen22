@@ -29,19 +29,26 @@ getData <- function() {
 #'              to convert any necessary .csv files to .fst. (Use in conjunction
 #'              with list.files in order to do this for a large host of files.)
 getOurGames <- function() {
-  ret <- data.frame() # Output df
-  # Get filenames
-  keys <- unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "UNCLiveGame/"))$Key)
-
-  # For each file...
-  for (key in keys) {
-    # Ensure this is an .fst file
-    if (gregexpr(".fst", key)[[1]][1] != -1) {
-      # Read in
-      temp <- s3read_using(FUN = read.fst, bucket = "uncbullpen", object = key)
-      ret <- rbind(ret, temp) # Bind together
-    }
-  }
+  
+  Sys.setenv("AWS_ACCESS_KEY_ID" = "AKIARMEABHYIPVWIYAUH",
+             "AWS_SECRET_ACCESS_KEY" = "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")
+  return(s3read_using(FUN=read.fst, 
+                         bucket = "unctrackman", 
+                         object = "tmData22.fst"))
+  
+  # ret <- data.frame() # Output df
+  # # Get filenames
+  # keys <- unique(data.table::rbindlist(get_bucket(bucket = "uncbullpen", prefix = "UNCLiveGame/"))$Key)
+  # 
+  # # For each file...
+  # for (key in keys) {
+  #   # Ensure this is an .fst file
+  #   if (gregexpr(".fst", key)[[1]][1] != -1) {
+  #     # Read in
+  #     temp <- s3read_using(FUN = read.fst, bucket = "uncbullpen", object = key)
+  #     ret <- rbind(ret, temp) # Bind together
+  #   }
+  # }
   return(ret) # Output live game df
 }
 
